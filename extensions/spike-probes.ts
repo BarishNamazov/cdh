@@ -7,12 +7,20 @@ interface SpikeEntryData {
 }
 
 export default function spikeProbes(pi: ExtensionAPI): void {
+  const entryRendererAvailable =
+    typeof (pi as ExtensionAPI & { registerEntryRenderer?: unknown }).registerEntryRenderer === "function";
+
   pi.registerCommand("cdh-spike", {
     description: "Run CDH WP0 extension API probes.",
     handler: async (args, ctx) => {
       pi.appendEntry("cdh:spike", { probe: "command", ok: true } satisfies SpikeEntryData);
+      pi.appendEntry("cdh:spike", {
+        probe: entryRendererAvailable ? "entry_renderer_available" : "entry_renderer_missing",
+        ok: entryRendererAvailable
+      } satisfies SpikeEntryData);
       ctx.ui.setStatus("cdh-spike", "command ok");
       ctx.ui.setWidget("cdh-spike", [`args: ${args || "<none>"}`]);
+      pi.appendEntry("cdh:spike", { probe: "ui_status_widget_called", ok: true } satisfies SpikeEntryData);
     }
   });
 
@@ -20,7 +28,7 @@ export default function spikeProbes(pi: ExtensionAPI): void {
     description: "Queue a CDH WP0 follow-up command probe.",
     handler: async (_args, _ctx) => {
       pi.appendEntry("cdh:spike", { probe: "followup_queued", ok: true } satisfies SpikeEntryData);
-      pi.sendUserMessage("/cdh-spike from-followup", { deliverAs: "followUp" });
+      pi.sendUserMessage("CDH follow-up retrigger probe", { deliverAs: "followUp" });
     }
   });
 

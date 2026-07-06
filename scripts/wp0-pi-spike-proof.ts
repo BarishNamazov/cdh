@@ -88,6 +88,7 @@ const settingsManager = SettingsManager.inMemory({
 const authStorage = AuthStorage.create(path.join(agentDir, "auth.json"));
 const modelRegistry = ModelRegistry.create(authStorage, path.join(agentDir, "models.json"));
 let observedSystemPromptProbe = false;
+let observedFollowupRetrigger = false;
 
 async function createLoadedResourceLoader(): Promise<DefaultResourceLoader> {
   const resourceLoader = new DefaultResourceLoader({
@@ -111,8 +112,10 @@ const faux = registerFauxProvider({ models: [{ id: "faux-1", reasoning: false }]
 faux.setResponses([
   (context) => {
     observedSystemPromptProbe = context.systemPrompt?.includes("CDH WP0 spike probe loaded.") ?? false;
-    return fauxAssistantMessage(fauxToolCall("cdh_spike_echo", { text: "from faux" }), { stopReason: "toolUse" });
+    observedFollowupRetrigger = JSON.stringify(context.messages).includes("CDH follow-up retrigger probe");
+    return fauxAssistantMessage("follow-up retrigger observed");
   },
+  fauxAssistantMessage(fauxToolCall("cdh_spike_echo", { text: "from faux" }), { stopReason: "toolUse" }),
   fauxAssistantMessage("echo done"),
   fauxAssistantMessage(fauxToolCall("bash", { command: "cdh-spike-block" }), { stopReason: "toolUse" }),
   fauxAssistantMessage("block done")
@@ -155,9 +158,20 @@ try {
   const spikeEntries = entries.filter(isSpikeEntry);
   assert(spikeEntries.some((entry) => entry.data?.probe === "command" && entry.data.ok), "Missing command spike entry");
   assert(
+    spikeEntries.some((entry) => entry.data?.probe === "ui_status_widget_called" && entry.data.ok),
+    "Missing UI status/widget call spike entry"
+  );
+  assert(
+    spikeEntries.some(
+      (entry) => entry.data?.probe === "entry_renderer_available" || entry.data?.probe === "entry_renderer_missing"
+    ),
+    "Missing entry renderer availability spike entry"
+  );
+  assert(
     spikeEntries.some((entry) => entry.data?.probe === "followup_queued" && entry.data.ok),
     "Missing follow-up queued spike entry"
   );
+  assert(observedFollowupRetrigger, "Missing follow-up retrigger model observation");
   assert(spikeEntries.some((entry) => entry.data?.probe === "tool" && entry.data.ok), "Missing tool spike entry");
   assert(observedSystemPromptProbe, "Missing before_agent_start system prompt probe");
   assert(
