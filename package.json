@@ -23,7 +23,7 @@
   ],
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "bun test",
+    "test": "rm -rf dist && bun test",
     "spike:pi": "bun run scripts/wp0-pi-spike-proof.ts",
     "validate:fixture": "bun run scripts/validate-fixture.ts fixtures/valid-app",
     "build": "tsc -p tsconfig.build.json"
