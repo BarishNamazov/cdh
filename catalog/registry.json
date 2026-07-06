@@ -1,0 +1,13 @@
+{
+  "concepts": [
+    {
+      "id": "authenticating",
+      "name": "Authenticating",
+      "version": "1.0.0",
+      "summary": "Username/password identity with registration and credential checks.",
+      "tags": ["identity", "security"],
+      "pairsWith": ["sessioning", "accesscontrolling"],
+      "files": ["concept.md", "AuthenticatingConcept.ts", "AuthenticatingConcept.test.ts", "README.md"]
+    }
+  ]
+}

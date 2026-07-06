@@ -1,13 +1,16 @@
 # Listing
 
-## Purpose
-List values.
+## purpose
+Publishes and manages item listings.
 
-## Principle
-Adding makes a value observable.
+## principle
+All listings are visible immediately.
 
-## State
-Values.
+## state
+Listings are stored per item.
 
-## Actions
-Add one value.
+## actions
+- `publish`: Creates a new listing.
+
+## queries
+- `_getListings`: Returns all active listings.

@@ -1,9 +1,9 @@
 export default class ListingConcept {
-  add(input: { value: string }): { value: string } {
-    return { value: input.value };
+  publish(input: { title: string; price: number }): { id: string } {
+    return { id: `list-${input.title}` };
   }
 
-  _getValues(): { value: string } {
+  _getListings(): { value: string } {
     return { value: "bad" };
   }
 }
