@@ -54,6 +54,7 @@ export default function spikeProbes(pi: ExtensionAPI): void {
 
   pi.on("tool_call", (event) => {
     if (isToolCallEventType("bash", event) && event.input.command.includes("cdh-spike-block")) {
+      pi.appendEntry("cdh:spike", { probe: "tool_call_block", ok: true } satisfies SpikeEntryData);
       return { block: true, reason: "Blocked by CDH spike probe" };
     }
   });
@@ -61,6 +62,7 @@ export default function spikeProbes(pi: ExtensionAPI): void {
   pi.on("tool_result", (event) => {
     if (event.toolName !== "cdh_spike_echo") return;
     const details = event.details && typeof event.details === "object" ? event.details : {};
+    pi.appendEntry("cdh:spike", { probe: "tool_result", ok: true } satisfies SpikeEntryData);
     return {
       content: [...event.content, { type: "text" as const, text: "CDH spike tool_result observed." }],
       details: { ...details, cdhSpikeObserved: true }

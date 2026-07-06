@@ -1,5 +1,6 @@
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { fauxAssistantMessage, fauxToolCall, registerFauxProvider } from "@earendil-works/pi-ai/compat";
 import {
   AuthStorage,
   type CustomEntry,
@@ -42,6 +43,7 @@ const settingsManager = SettingsManager.inMemory({
 });
 const authStorage = AuthStorage.create(path.join(agentDir, "auth.json"));
 const modelRegistry = ModelRegistry.create(authStorage, path.join(agentDir, "models.json"));
+let observedSystemPromptProbe = false;
 
 async function createLoadedResourceLoader(): Promise<DefaultResourceLoader> {
   const resourceLoader = new DefaultResourceLoader({
@@ -61,6 +63,18 @@ async function createLoadedResourceLoader(): Promise<DefaultResourceLoader> {
   return resourceLoader;
 }
 
+const faux = registerFauxProvider({ models: [{ id: "faux-1", reasoning: false }] });
+faux.setResponses([
+  (context) => {
+    observedSystemPromptProbe = context.systemPrompt?.includes("CDH WP0 spike probe loaded.") ?? false;
+    return fauxAssistantMessage(fauxToolCall("cdh_spike_echo", { text: "from faux" }), { stopReason: "toolUse" });
+  },
+  fauxAssistantMessage("echo done"),
+  fauxAssistantMessage(fauxToolCall("bash", { command: "cdh-spike-block" }), { stopReason: "toolUse" }),
+  fauxAssistantMessage("block done")
+]);
+authStorage.setRuntimeApiKey(faux.getModel().provider, "faux-key");
+
 async function createProofSession(sessionManager: SessionManager) {
   return createAgentSession({
     cwd: root,
@@ -70,7 +84,8 @@ async function createProofSession(sessionManager: SessionManager) {
     settingsManager,
     resourceLoader: await createLoadedResourceLoader(),
     sessionManager,
-    noTools: "builtin"
+    model: faux.getModel(),
+    tools: ["cdh_spike_echo", "bash"]
   });
 }
 
@@ -86,6 +101,11 @@ try {
 
   await session.prompt("/cdh-spike sdk-proof");
   await session.prompt("/cdh-spike-followup");
+  await session.agent.waitForIdle();
+  await session.prompt("Use the echo tool.");
+  await session.agent.waitForIdle();
+  await session.prompt("Run the blocked bash probe.");
+  await session.agent.waitForIdle();
 
   const entries = sessionManager.getEntries();
   const spikeEntries = entries.filter(isSpikeEntry);
@@ -94,25 +114,28 @@ try {
     spikeEntries.some((entry) => entry.data?.probe === "followup_queued" && entry.data.ok),
     "Missing follow-up queued spike entry"
   );
-  // Pi defers creating the session file until the first assistant message; this
-  // synthetic message gives command-only probes the same durable boundary.
-  sessionManager.appendMessage({
-    role: "assistant",
-    content: [{ type: "text", text: "CDH WP0 spike proof flush." }],
-    api: "openai-responses",
-    provider: "openai",
-    model: "cdh-local-proof",
-    usage: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 0,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
-    },
-    stopReason: "stop",
-    timestamp: Date.now()
-  });
+  assert(spikeEntries.some((entry) => entry.data?.probe === "tool" && entry.data.ok), "Missing tool spike entry");
+  assert(observedSystemPromptProbe, "Missing before_agent_start system prompt probe");
+  assert(
+    spikeEntries.some((entry) => entry.data?.probe === "tool_result" && entry.data.ok),
+    "Missing tool result spike entry"
+  );
+  assert(
+    spikeEntries.some((entry) => entry.data?.probe === "tool_call_block" && entry.data.ok),
+    "Missing tool call block spike entry"
+  );
+  assert(
+    entries.some(
+      (entry) =>
+        entry.type === "message" &&
+        entry.message.role === "toolResult" &&
+        entry.message.toolName === "cdh_spike_echo" &&
+        entry.message.content.some(
+          (content) => content.type === "text" && content.text.includes("CDH spike tool_result observed.")
+        )
+    ),
+    "Missing modified cdh_spike_echo tool result message"
+  );
   assert(sessionManager.getSessionFile(), "Expected a persisted session file");
 
   const sessionFile = sessionManager.getSessionFile();
@@ -136,4 +159,5 @@ try {
   );
 } finally {
   if (!disposed) session.dispose();
+  faux.unregister();
 }
