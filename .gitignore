@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.wp0-cache/
+*.log
+.DS_Store
