@@ -1,6 +1,6 @@
 # Pi API Notes
 
-Status: WP0 in progress. Documentation review completed against `@earendil-works/pi-coding-agent` 0.80.3 cloned from `https://github.com/earendil-works/pi` on 2026-07-06. A persistent SDK scripted-session proof now confirms command registration, custom entry append, and session-file persistence. Tool-call, tool-result, entry-renderer, follow-up, and child-session proofs remain pending before WP0 can be marked complete.
+Status: WP0 in progress. Documentation review completed against `@earendil-works/pi-coding-agent` 0.80.3 cloned from `https://github.com/earendil-works/pi` on 2026-07-06. A persistent SDK scripted-session proof now confirms command registration, custom tool registration, follow-up queueing, custom entry append, and session-file persistence after Pi's first-assistant-message durable boundary. Tool-call, tool-result, entry-renderer, follow-up retrigger, and child-session proofs remain pending before WP0 can be marked complete.
 
 ## Package And Imports
 
@@ -40,17 +40,18 @@ Status: WP0 in progress. Documentation review completed against `@earendil-works
 ## Scripted Proof Confirmed
 
 - `bun run spike:pi` uses `createAgentSession`, `DefaultResourceLoader.additionalExtensionPaths`, and `SessionManager.create(cwd, sessionDir)` to load `extensions/spike-probes.ts`.
+- The proof verifies the registered SDK tool list includes `cdh_spike_echo`.
 - The proof sends `/cdh-spike sdk-proof`, which executes without model credentials because the extension command handles the prompt before an LLM call.
-- The proof verifies a persisted `cdh:spike` custom entry with `{ probe: "command", ok: true }` and a concrete session file under `.wp0-cache/pi-spike-proof/sessions/`.
+- The proof sends `/cdh-spike-followup` and verifies it queues a follow-up through `pi.sendUserMessage(..., { deliverAs: "followUp" })`. In the SDK command-only path this queues but does not retrigger a second command without an agent/model loop, so retrigger remains pending.
+- Pi's SessionManager intentionally defers session-file creation until the first assistant message. The proof appends a synthetic assistant message after command-only probes to force the same durable boundary, then reopens the concrete session file under `.wp0-cache/pi-spike-proof/sessions/` and verifies `cdh:spike` entries persisted.
 
 ## Scripted Proof Still Required
 
-- Re-open the persisted proof session and verify `session_start` restores prior `cdh:spike` entries.
 - Call `cdh_spike_echo` in an agent turn and verify `tool_result` appends `CDH spike tool_result observed.`.
 - Run a bash command containing `cdh-spike-block` and verify it is blocked with the spike reason.
 - Verify `before_agent_start` adds `CDH WP0 spike probe loaded.` to the turn system prompt.
 - Verify `ctx.ui.setStatus` and `ctx.ui.setWidget` render in TUI mode.
 - Verify whether `pi.registerEntryRenderer` is available at runtime despite missing npm package types; if unavailable, use custom message renderers or defer entry renderers until a pi version with public types is pinned.
-- Verify follow-up user-message retrigger behavior with `pi.sendUserMessage(..., { deliverAs: "followUp" })`; add this to the probe once a deterministic scripted session is available.
+- Verify follow-up user-message retrigger behavior in a real agent loop with `pi.sendUserMessage(..., { deliverAs: "followUp" })`; the SDK command-only proof only verifies queueing.
 - Verify child-session/subagent execution through SDK runtime or CLI JSON/RPC, since the documented subagent example path is missing.
 - Verify TUI scripted testing with tmux or SDK/RPC harness; the cloned repo's `AGENTS.md` documents tmux startup with `./pi-test.sh`.

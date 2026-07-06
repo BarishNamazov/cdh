@@ -16,6 +16,14 @@ export default function spikeProbes(pi: ExtensionAPI): void {
     }
   });
 
+  pi.registerCommand("cdh-spike-followup", {
+    description: "Queue a CDH WP0 follow-up command probe.",
+    handler: async (_args, _ctx) => {
+      pi.appendEntry("cdh:spike", { probe: "followup_queued", ok: true } satisfies SpikeEntryData);
+      pi.sendUserMessage("/cdh-spike from-followup", { deliverAs: "followUp" });
+    }
+  });
+
   pi.registerTool({
     name: "cdh_spike_echo",
     label: "CDH Spike Echo",
@@ -34,7 +42,10 @@ export default function spikeProbes(pi: ExtensionAPI): void {
     const prior = ctx.sessionManager
       .getEntries()
       .filter((entry) => entry.type === "custom" && entry.customType === "cdh:spike");
-    if (prior.length > 0) ctx.ui.setStatus("cdh-spike", `restored ${prior.length}`);
+    if (prior.length > 0) {
+      ctx.ui.setStatus("cdh-spike", `restored ${prior.length}`);
+      pi.appendEntry("cdh:spike", { probe: "session_restore", ok: true } satisfies SpikeEntryData);
+    }
   });
 
   pi.on("before_agent_start", (event) => ({

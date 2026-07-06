@@ -42,42 +42,98 @@ const settingsManager = SettingsManager.inMemory({
 });
 const authStorage = AuthStorage.create(path.join(agentDir, "auth.json"));
 const modelRegistry = ModelRegistry.create(authStorage, path.join(agentDir, "models.json"));
-const resourceLoader = new DefaultResourceLoader({
-  cwd: root,
-  agentDir,
-  settingsManager,
-  additionalExtensionPaths: [path.join(root, "extensions", "spike-probes.ts")],
-  noSkills: true,
-  noPromptTemplates: true,
-  noThemes: true,
-  noContextFiles: true
-});
 
-await resourceLoader.reload();
-const loadedExtensions = resourceLoader.getExtensions();
-assert(loadedExtensions.errors.length === 0, `Extension load failed: ${JSON.stringify(loadedExtensions.errors)}`);
+async function createLoadedResourceLoader(): Promise<DefaultResourceLoader> {
+  const resourceLoader = new DefaultResourceLoader({
+    cwd: root,
+    agentDir,
+    settingsManager,
+    additionalExtensionPaths: [path.join(root, "extensions", "spike-probes.ts")],
+    noSkills: true,
+    noPromptTemplates: true,
+    noThemes: true,
+    noContextFiles: true
+  });
+
+  await resourceLoader.reload();
+  const loadedExtensions = resourceLoader.getExtensions();
+  assert(loadedExtensions.errors.length === 0, `Extension load failed: ${JSON.stringify(loadedExtensions.errors)}`);
+  return resourceLoader;
+}
+
+async function createProofSession(sessionManager: SessionManager) {
+  return createAgentSession({
+    cwd: root,
+    agentDir,
+    authStorage,
+    modelRegistry,
+    settingsManager,
+    resourceLoader: await createLoadedResourceLoader(),
+    sessionManager,
+    noTools: "builtin"
+  });
+}
 
 const sessionManager = SessionManager.create(root, sessionDir, { id: "cdh-wp0-spike" });
-const { session } = await createAgentSession({
-  cwd: root,
-  agentDir,
-  authStorage,
-  modelRegistry,
-  settingsManager,
-  resourceLoader,
-  sessionManager,
-  noTools: "builtin"
-});
+const { session } = await createProofSession(sessionManager);
+let disposed = false;
 
 try {
+  assert(
+    session.agent.state.tools.some((tool) => tool.name === "cdh_spike_echo"),
+    "Missing registered cdh_spike_echo tool"
+  );
+
   await session.prompt("/cdh-spike sdk-proof");
+  await session.prompt("/cdh-spike-followup");
 
   const entries = sessionManager.getEntries();
   const spikeEntries = entries.filter(isSpikeEntry);
   assert(spikeEntries.some((entry) => entry.data?.probe === "command" && entry.data.ok), "Missing command spike entry");
+  assert(
+    spikeEntries.some((entry) => entry.data?.probe === "followup_queued" && entry.data.ok),
+    "Missing follow-up queued spike entry"
+  );
+  // Pi defers creating the session file until the first assistant message; this
+  // synthetic message gives command-only probes the same durable boundary.
+  sessionManager.appendMessage({
+    role: "assistant",
+    content: [{ type: "text", text: "CDH WP0 spike proof flush." }],
+    api: "openai-responses",
+    provider: "openai",
+    model: "cdh-local-proof",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    },
+    stopReason: "stop",
+    timestamp: Date.now()
+  });
   assert(sessionManager.getSessionFile(), "Expected a persisted session file");
 
-  console.log(JSON.stringify({ ok: true, sessionFile: sessionManager.getSessionFile(), spikeEntries }, null, 2));
-} finally {
+  const sessionFile = sessionManager.getSessionFile();
+  assert(sessionFile, "Expected session file before reopen");
   session.dispose();
+  disposed = true;
+
+  const reopenedManager = SessionManager.open(sessionFile, sessionDir, root);
+  const reopenedSpikeEntries = reopenedManager.getEntries().filter(isSpikeEntry);
+  assert(
+    reopenedSpikeEntries.some((entry) => entry.data?.probe === "command" && entry.data.ok),
+    "Missing command spike entry after direct session reopen"
+  );
+
+  console.log(
+    JSON.stringify(
+      { ok: true, sessionFile, spikeEntries: reopenedSpikeEntries, registeredTool: "cdh_spike_echo" },
+      null,
+      2
+    )
+  );
+} finally {
+  if (!disposed) session.dispose();
 }
