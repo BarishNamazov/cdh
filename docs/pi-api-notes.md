@@ -1,6 +1,6 @@
 # Pi API Notes
 
-Status: WP0 in progress. Documentation review completed against `@earendil-works/pi-coding-agent` 0.80.3 cloned from `https://github.com/earendil-works/pi` on 2026-07-06. A persistent SDK scripted-session proof now confirms command registration, custom tool registration and execution, `tool_call` blocking, `tool_result` mutation, `before_agent_start` system prompt mutation, `agent_end` observation, follow-up queueing, custom entry append, and session-file persistence. Entry-renderer, UI widget rendering, follow-up retrigger, and child-session proofs remain pending before WP0 can be marked complete.
+Status: WP0 in progress. Documentation review completed against `@earendil-works/pi-coding-agent` 0.80.3 cloned from `https://github.com/earendil-works/pi` on 2026-07-06. A persistent SDK scripted-session proof now confirms command registration, custom tool registration and execution, `tool_call` blocking, `tool_result` mutation, `before_agent_start` system prompt mutation, `agent_end` observation, follow-up queueing, custom entry append, session-file persistence, and child-session subprocess usage capture. Entry-renderer, UI widget rendering, and follow-up retrigger proofs remain pending before WP0 can be marked complete.
 
 ## Package And Imports
 
@@ -48,11 +48,11 @@ Status: WP0 in progress. Documentation review completed against `@earendil-works
 - The faux provider response factory verifies the provider context includes `CDH WP0 spike probe loaded.`, proving `before_agent_start` system-prompt mutation.
 - The proof verifies `agent_end` appends `cdh:spike` entries.
 - Pi's SessionManager intentionally defers session-file creation until the first assistant message. The faux model turns create that durable boundary; the proof then reopens the concrete session file under `.wp0-cache/pi-spike-proof/sessions/` and verifies `cdh:spike` entries persisted.
+- The parent proof spawns a child process with `Bun.spawn(["bun", "run", "scripts/wp0-pi-spike-proof.ts", "--child"], ...)`, parses the child's JSON summary, and verifies assistant usage was captured from the child session. This replaces the missing `examples/extensions/subagent/` path for WP0's child-session proof.
 
 ## Scripted Proof Still Required
 
 - Verify `ctx.ui.setStatus` and `ctx.ui.setWidget` render in TUI mode.
 - Verify whether `pi.registerEntryRenderer` is available at runtime despite missing npm package types; if unavailable, use custom message renderers or defer entry renderers until a pi version with public types is pinned.
 - Verify follow-up user-message retrigger behavior in a real agent loop with `pi.sendUserMessage(..., { deliverAs: "followUp" })`; the SDK command-only proof only verifies queueing.
-- Verify child-session/subagent execution through SDK runtime or CLI JSON/RPC, since the documented subagent example path is missing.
 - Verify TUI scripted testing with tmux or SDK/RPC harness; the cloned repo's `AGENTS.md` documents tmux startup with `./pi-test.sh`.

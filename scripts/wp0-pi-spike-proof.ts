@@ -17,6 +17,15 @@ interface SpikeEntryData {
   ok: boolean;
 }
 
+interface SpikeProofSummary {
+  ok: true;
+  sessionFile: string;
+  spikeEntries: Array<ReturnType<typeof serializeSpikeEntry>>;
+  registeredTool: "cdh_spike_echo";
+  usage: { assistantMessages: number; inputTokens: number; outputTokens: number };
+  child?: SpikeProofSummary;
+}
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
@@ -28,8 +37,43 @@ function isSpikeEntry(entry: SessionEntry): entry is CustomEntry<SpikeEntryData>
   return typeof data.probe === "string" && typeof data.ok === "boolean";
 }
 
+function serializeSpikeEntry(entry: CustomEntry<SpikeEntryData>) {
+  return {
+    type: entry.type,
+    customType: entry.customType,
+    data: entry.data,
+    id: entry.id,
+    parentId: entry.parentId,
+    timestamp: entry.timestamp
+  };
+}
+
+async function runChildProof(): Promise<SpikeProofSummary> {
+  const child = Bun.spawn(["bun", "run", "scripts/wp0-pi-spike-proof.ts", "--child"], {
+    cwd: root,
+    stdout: "pipe",
+    stderr: "pipe",
+    env: { ...Bun.env, CDH_WP0_CHILD: "1" }
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited
+  ]);
+
+  if (exitCode !== 0) {
+    throw new Error(`Child proof failed with exit ${exitCode}\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`);
+  }
+
+  const parsed = JSON.parse(stdout) as Partial<SpikeProofSummary>;
+  assert(parsed.ok === true, "Child proof did not report ok");
+  assert(parsed.usage?.assistantMessages && parsed.usage.assistantMessages > 0, "Child proof did not capture usage");
+  return parsed as SpikeProofSummary;
+}
+
 const root = path.resolve(import.meta.dir, "..");
-const proofDir = path.join(root, ".wp0-cache", "pi-spike-proof");
+const isChild = Bun.argv.includes("--child");
+const proofDir = path.join(root, ".wp0-cache", isChild ? "pi-spike-proof-child" : "pi-spike-proof");
 const sessionDir = path.join(proofDir, "sessions");
 const agentDir = path.join(proofDir, "agent");
 
@@ -145,18 +189,29 @@ try {
 
   const reopenedManager = SessionManager.open(sessionFile, sessionDir, root);
   const reopenedSpikeEntries = reopenedManager.getEntries().filter(isSpikeEntry);
+  const usage = { assistantMessages: 0, inputTokens: 0, outputTokens: 0 };
+  for (const entry of reopenedManager.getEntries()) {
+    if (entry.type !== "message" || entry.message.role !== "assistant") continue;
+    usage.assistantMessages += 1;
+    usage.inputTokens += entry.message.usage.input;
+    usage.outputTokens += entry.message.usage.output;
+  }
+  assert(usage.assistantMessages > 0, "Missing faux assistant usage");
   assert(
     reopenedSpikeEntries.some((entry) => entry.data?.probe === "command" && entry.data.ok),
     "Missing command spike entry after direct session reopen"
   );
 
-  console.log(
-    JSON.stringify(
-      { ok: true, sessionFile, spikeEntries: reopenedSpikeEntries, registeredTool: "cdh_spike_echo" },
-      null,
-      2
-    )
-  );
+  const summary: SpikeProofSummary = {
+    ok: true,
+    sessionFile,
+    spikeEntries: reopenedSpikeEntries.map(serializeSpikeEntry),
+    registeredTool: "cdh_spike_echo",
+    usage
+  };
+  if (!isChild) summary.child = await runChildProof();
+
+  console.log(JSON.stringify(summary, null, 2));
 } finally {
   if (!disposed) session.dispose();
   faux.unregister();
