@@ -1,6 +1,6 @@
 # Pi API Notes
 
-Status: WP0 in progress. Documentation review completed against `@earendil-works/pi-coding-agent` 0.80.3 cloned from `https://github.com/earendil-works/pi` on 2026-07-06. Scripted-session proof is still pending before WP0 can be marked complete.
+Status: WP0 in progress. Documentation review completed against `@earendil-works/pi-coding-agent` 0.80.3 cloned from `https://github.com/earendil-works/pi` on 2026-07-06. A persistent SDK scripted-session proof now confirms command registration, custom entry append, and session-file persistence. Tool-call, tool-result, entry-renderer, follow-up, and child-session proofs remain pending before WP0 can be marked complete.
 
 ## Package And Imports
 
@@ -37,9 +37,15 @@ Status: WP0 in progress. Documentation review completed against `@earendil-works
 
 `extensions/spike-probes.ts` now exercises the documented signatures for command registration, custom tool registration, session restoration, system prompt modification, tool call blocking, tool result modification, widget/status UI, and `agent_end` observation. Entry rendering remains pending because installed package types disagree with cloned source docs.
 
+## Scripted Proof Confirmed
+
+- `bun run spike:pi` uses `createAgentSession`, `DefaultResourceLoader.additionalExtensionPaths`, and `SessionManager.create(cwd, sessionDir)` to load `extensions/spike-probes.ts`.
+- The proof sends `/cdh-spike sdk-proof`, which executes without model credentials because the extension command handles the prompt before an LLM call.
+- The proof verifies a persisted `cdh:spike` custom entry with `{ probe: "command", ok: true }` and a concrete session file under `.wp0-cache/pi-spike-proof/sessions/`.
+
 ## Scripted Proof Still Required
 
-- Run pi with `-e ./extensions/spike-probes.ts` and verify `/cdh-spike` appends and restores a `cdh:spike` entry.
+- Re-open the persisted proof session and verify `session_start` restores prior `cdh:spike` entries.
 - Call `cdh_spike_echo` in an agent turn and verify `tool_result` appends `CDH spike tool_result observed.`.
 - Run a bash command containing `cdh-spike-block` and verify it is blocked with the spike reason.
 - Verify `before_agent_start` adds `CDH WP0 spike probe loaded.` to the turn system prompt.
