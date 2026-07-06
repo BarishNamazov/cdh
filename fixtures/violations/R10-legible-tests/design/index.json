@@ -1,0 +1,7 @@
+{
+  "specsDir": "design/concepts",
+  "docs": {},
+  "helpers": { "testingModule": "@utils/testing.ts", "exports": ["trace"] },
+  "scripts": { "test": "bun test", "typecheck": "bun run check", "start": "bun run start" },
+  "health": { "path": "/api/health" }
+}

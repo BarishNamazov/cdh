@@ -1,0 +1,42 @@
+{
+  "R1-cross-concept-import": {
+    "rule": "R1",
+    "intent": "Concept imports another concept implementation."
+  },
+  "R2-action-signature": {
+    "rule": "R2",
+    "intent": "Action method does not take exactly one object parameter and return an object."
+  },
+  "R3-query-signature": {
+    "rule": "R3",
+    "intent": "Query method does not return an array."
+  },
+  "R4-placement-naming": {
+    "rule": "R4",
+    "intent": "Concept file default export name does not match placement."
+  },
+  "R5-protected-path": {
+    "rule": "R5",
+    "intent": "Protected path write target for GatePolicy tests."
+  },
+  "R6-spec-presence": {
+    "rule": "R6",
+    "intent": "Concept spec exists but is missing required sections."
+  },
+  "R7-test-presence": {
+    "rule": "R7",
+    "intent": "Concept implementation is missing its sibling test."
+  },
+  "R8-surface-coverage": {
+    "rule": "R8",
+    "intent": "Concept tests instantiate without track(), so runtime coverage is absent."
+  },
+  "R9-sync-test-shape": {
+    "rule": "R9",
+    "intent": "Sync test lacks required setupSyncTest positive and negative shape."
+  },
+  "R10-legible-tests": {
+    "rule": "R10",
+    "intent": "Multi-action/principle-style concept test lacks trace() or console.log narration."
+  }
+}
