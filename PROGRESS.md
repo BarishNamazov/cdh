@@ -6,7 +6,7 @@
 - WP3: complete, 2026-07-06, implemented gate policy (`src/gate-policy.ts`) with R5 protected path enforcement (`src/engine/**`, `src/sdk/**`, `.env*`), bash screening (rm -rf, force-push, .env writes), and `/allow-engine` session flag.
 - WP5a: complete, 2026-07-06, implemented verification stage runner (`src/verify/`) with journal-health, typecheck, rules, tests, surface-coverage, and legibility stages. Implemented `cdh rules` and `cdh verify [--tier quick|ship]` CLI commands in `bin/cdh.ts`. `fixtures/valid-app` passes `cdh verify --tier quick`.
 - WP6a: complete, 2026-07-06, implemented catalog lib (`src/catalog-lib.ts`) with copy and rename routine. Created `Authenticating` catalog concept (T7 quality) with register, authenticate, changePassword, unregister actions, _getUserByUsername/_getUsers queries, Bun.password.hash/verify, full spec, and 9 passing tests using track(), testAction(), expectError(), trace().
-- WP4: not started (M2)
+- WP4: complete, 2026-07-07, implemented list_concepts, describe_concept, list_syncs, and trace_sync CLI commands and pi agent tools. Also added spec-check and spec-sync tools for keeping concept code and specs aligned. Implemented cdh doctor with contract validation, file existence, spec/test presence, and journal health checks. New CLI commands: trace, syncs, concepts, concept, spec-check, spec-sync.
 - WP5b: not started (M2)
 - WP6b: not started (M2)
 - WP7: not started (M2)

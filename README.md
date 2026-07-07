@@ -30,6 +30,27 @@ cdh init
 
 # Check harness and repo health
 cdh doctor
+
+# Trace which syncs involve a specific concept action
+cdh trace Labeling.addLabel
+
+# List all syncs (optionally filter by concept)
+cdh syncs --concept Labeling
+
+# List all concepts with action/query counts
+cdh concepts
+
+# Show detailed surface for a concept (includes spec)
+cdh concept Labeling
+
+# Check if a concept's spec matches its code surface
+cdh spec-check Labeling
+
+# Auto-update a spec to match code (--dry-run to preview)
+cdh spec-sync Labeling --dry-run
+
+# Read a design convention document
+cdh doc testing-conventions
 ```
 
 ## What It Checks
