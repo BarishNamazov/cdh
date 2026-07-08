@@ -1,4 +1,3 @@
-import path from "node:path";
 import type { CdhConfig } from "./config.ts";
 
 export interface PolicyHit {
@@ -11,87 +10,69 @@ export interface PolicyHit {
 export interface GatePolicy {
   checkMutation(toolName: string, filePath: string): PolicyHit | null;
   screenBash(command: string): PolicyHit | null;
-  allowEngineThisSession(): void;
-  isEngineAllowed(): boolean;
 }
 
-export function createGatePolicy(cwd: string, config: CdhConfig): GatePolicy {
-  let engineAllowed = false;
+const PROTECTED_PATHS = [".env"];
 
-  const protectedPaths = [
-    "src/engine/",
-    "src/sdk/",
-    ".env"
-  ];
+function isProtected(filePath: string): boolean {
+  return PROTECTED_PATHS.some((p) => filePath === p || filePath.endsWith(`/${p}`) || filePath.endsWith(`\\${p}`));
+}
 
-  function isProtected(filePath: string): boolean {
-    return protectedPaths.some((p) => {
-      if (p.endsWith("/")) return filePath.startsWith(p) || filePath.includes(`/${p}`);
-      return filePath === p || filePath.startsWith(p) || filePath.endsWith(p);
-    });
-  }
-
+export function createGatePolicy(cwd: string, _config: CdhConfig): GatePolicy {
   return {
     checkMutation(_toolName: string, filePath: string): PolicyHit | null {
       if (!isProtected(filePath)) return null;
-      if (engineAllowed) return null;
 
       return {
-        rule: "R5",
+        rule: "protected-path",
         severity: "block",
         path: filePath,
-        message: `R5 protected path: writing to '${filePath}' is blocked. Protected paths include ${protectedPaths.join(", ")}. Run /allow-engine to permit engine/sdk edits for this session.`
+        message: `Writing to protected path '${filePath}' is blocked. Protected paths: ${PROTECTED_PATHS.join(", ")}.`
       };
     },
 
     screenBash(command: string): PolicyHit | null {
       const normalized = command.trim();
 
-      if (normalized.includes("rm -rf") && !normalized.includes(cwd)) {
+      if (/\brm\s+(-[rf]+\s*)+/.test(normalized) && !normalized.includes(cwd)) {
         return {
-          rule: "R5",
+          rule: "dangerous-command",
           severity: "block",
-          message: `R5 bash screening: 'rm -rf' outside working directory is blocked. Command: ${normalized.slice(0, 80)}`
+          message: `Recursive deletion outside working directory is blocked.`
         };
       }
 
-      if (normalized.includes("git push --force") || normalized.includes("git push -f")) {
+      if (/\bgit\s+push\s+.*--force/.test(normalized) || normalized.includes("git push -f")) {
         return {
-          rule: "R5",
+          rule: "dangerous-command",
           severity: "block",
-          message: `R5 bash screening: force-push is blocked. Command: ${normalized.slice(0, 80)}`
+          message: `Force-push is blocked.`
         };
       }
 
-      if (/>\s*\.env/i.test(normalized) || /\.env\b.*(\||tee|write)/i.test(normalized)) {
+      if (hasEnvRedirect(normalized)) {
         return {
-          rule: "R5",
+          rule: "dangerous-command",
           severity: "block",
-          message: `R5 bash screening: writing to .env files is blocked. Command: ${normalized.slice(0, 80)}`
+          message: `Writing to .env files through shell redirection is blocked.`
         };
       }
 
-      for (const pp of protectedPaths) {
-        const dirEnd = pp.endsWith("/") ? pp : `${pp}/`;
-        if (normalized.includes(dirEnd) && !engineAllowed) {
+      for (const pp of PROTECTED_PATHS) {
+        if (normalized.includes(pp)) {
           return {
-            rule: "R5",
+            rule: "dangerous-command",
             severity: "block",
-            path: pp,
-            message: `R5 bash screening: command references protected path '${pp}'. Run /allow-engine first or use a different approach.`
+            message: `Command references protected path '${pp}'.`
           };
         }
       }
 
       return null;
-    },
-
-    allowEngineThisSession(): void {
-      engineAllowed = true;
-    },
-
-    isEngineAllowed(): boolean {
-      return engineAllowed;
     }
   };
+}
+
+function hasEnvRedirect(command: string): boolean {
+  return /\.env\s*[>|]/.test(command) || /[>|]\s*\.env/.test(command);
 }

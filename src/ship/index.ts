@@ -1,5 +1,4 @@
-import { execSync } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import type { CdhConfig } from "../config.ts";
 
@@ -13,15 +12,18 @@ export interface RunSnapshot {
 export interface TouchedResult {
   touched: string[];
   preExistingDirty: string[];
-  committed: boolean;
 }
 
-function runGit(cwd: string, args: string[]): string {
-  try {
-    return execSync(`git ${args.join(" ")}`, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
-  } catch {
-    return "";
-  }
+function runGit(cwd: string, args: string[]): { success: boolean; output: string } {
+  const proc = Bun.spawnSync(["git", ...args], {
+    cwd,
+    stdout: "pipe",
+    stderr: "pipe"
+  });
+  return {
+    success: proc.exitCode === 0,
+    output: new TextDecoder().decode(proc.stdout).trim()
+  };
 }
 
 function isGitRepo(cwd: string): boolean {
@@ -31,27 +33,29 @@ function isGitRepo(cwd: string): boolean {
 export function captureSnapshot(cwd: string): RunSnapshot | null {
   if (!isGitRepo(cwd)) return null;
 
-  const startRef = runGit(cwd, ["rev-parse", "HEAD"]) || "unborn";
-  const startStatus = runGit(cwd, ["status", "--porcelain"]);
+  const refResult = runGit(cwd, ["rev-parse", "HEAD"]);
+  const startRef = refResult.success ? refResult.output : "unborn";
+  const statusResult = runGit(cwd, ["status", "--porcelain"]);
+  const startStatus = statusResult.output;
 
   const preExistingDirty: string[] = [];
   const preExistingStaged: string[] = [];
 
   for (const line of startStatus.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
+    if (line.length < 4) continue;
+    const status = line.slice(0, 2);
+    const filePath = line.slice(3);
 
-    const status = trimmed.slice(0, 2);
-    const filePath = trimmed.slice(3);
-
-    const isUntracked = status[0] === "?" && status[1] === "?";
+    const isUntracked = status === "??";
     if (isUntracked) {
       preExistingDirty.push(filePath);
       continue;
     }
 
-    const isStaged = status[0] !== " ";
-    const isModified = status[1] !== " ";
+    const indexStatus = status[0]!;
+    const worktreeStatus = status[1]!;
+    const isStaged = indexStatus !== " " && indexStatus !== "?";
+    const isModified = worktreeStatus !== " " && worktreeStatus !== "?";
 
     if (isStaged) {
       preExistingStaged.push(filePath);
@@ -59,53 +63,47 @@ export function captureSnapshot(cwd: string): RunSnapshot | null {
     if (isModified && !isStaged) {
       preExistingDirty.push(filePath);
     }
-    if (isModified && isStaged) {
-      preExistingStaged.push(filePath);
-    }
   }
 
   return { startRef, startStatus, preExistingDirty, preExistingStaged };
 }
 
 export function computeTouched(cwd: string, snapshot: RunSnapshot): TouchedResult {
-  const currentStatus = runGit(cwd, ["status", "--porcelain"]);
-
+  const statusResult = runGit(cwd, ["status", "--porcelain"]);
   const touched: string[] = [];
   const preExistingDirty: string[] = [];
+  const touchedSet = new Set<string>();
 
   const snapshotFiles = new Set([
     ...snapshot.preExistingDirty,
     ...snapshot.preExistingStaged
   ]);
 
-  for (const line of currentStatus.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    const filePath = trimmed.slice(3);
-    const status = trimmed.slice(0, 2);
-    const isUntracked = status[0] === "?" && status[1] === "?";
+  for (const line of statusResult.output.split("\n")) {
+    if (line.length < 4) continue;
+    const filePath = line.slice(3);
+    const status = line.slice(0, 2);
+    const isUntracked = status === "??";
 
     if (snapshotFiles.has(filePath)) {
       if (!isUntracked) preExistingDirty.push(filePath);
       continue;
     }
 
-    touched.push(filePath);
+    touchedSet.add(filePath);
   }
 
-  const newUntracked = runGit(cwd, ["ls-files", "--others", "--exclude-standard"])
-    .split("\n")
-    .filter(Boolean)
-    .filter((f) => !snapshotFiles.has(f));
-
-  for (const file of newUntracked) {
-    if (!touched.includes(file)) {
-      touched.push(file);
+  const untracked = runGit(cwd, ["ls-files", "--others", "--exclude-standard"]);
+  for (const file of untracked.output.split("\n").filter(Boolean)) {
+    if (!snapshotFiles.has(file)) {
+      touchedSet.add(file);
     }
   }
 
-  return { touched, preExistingDirty, committed: false };
+  return {
+    touched: [...touchedSet],
+    preExistingDirty: [...new Set([...snapshot.preExistingDirty, ...snapshot.preExistingStaged])]
+  };
 }
 
 export function isMergeInProgress(cwd: string): boolean {
@@ -128,13 +126,13 @@ export interface ShipPreflightResult {
 export function runShipPreflight(
   cwd: string,
   snapshot: RunSnapshot,
-  _touched: TouchedResult
+  touched: TouchedResult
 ): ShipPreflightResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
   if (!isGitRepo(cwd)) {
-    errors.push("Not a git repository. Ship requires a git repository.");
+    errors.push("Not a git repository.");
   }
 
   if (isMergeInProgress(cwd)) {
@@ -145,15 +143,13 @@ export function runShipPreflight(
     errors.push("Rebase in progress. Resolve or abort the rebase before shipping.");
   }
 
-  if (snapshot.preExistingDirty.length > 0 || snapshot.preExistingStaged.length > 0) {
-    const dirty = snapshot.preExistingDirty;
-    const staged = snapshot.preExistingStaged;
-    const msg = `Pre-existing dirty/staged files detected: ${[...dirty, ...staged].join(", ")}`;
-
-    warnings.push(msg);
+  if (touched.preExistingDirty.length > 0) {
+    const display = touched.preExistingDirty.slice(0, 10);
+    const suffix = touched.preExistingDirty.length > 10 ? ` and ${touched.preExistingDirty.length - 10} more` : "";
+    warnings.push(`Pre-existing dirty/staged files excluded: ${display.join(", ")}${suffix}`);
   }
 
-  if (_touched.touched.length === 0) {
+  if (touched.touched.length === 0) {
     errors.push("No files were changed. Nothing to ship.");
   }
 
@@ -161,7 +157,7 @@ export function runShipPreflight(
     ok: errors.length === 0,
     errors,
     warnings,
-    touched: _touched.touched,
-    preExistingDirty: [...snapshot.preExistingDirty, ...snapshot.preExistingStaged]
+    touched: touched.touched,
+    preExistingDirty: touched.preExistingDirty
   };
 }

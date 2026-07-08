@@ -14,8 +14,8 @@ interface TestContext {
 
 const context = new AsyncLocalStorage<TestContext>();
 
-export function setupTestDb(): { labeling: LabelingState } {
-  return { labeling: { labels: [] } };
+export function setupTestDb(): { labeling: LabelingState; requesting: Record<string, never> } {
+  return { labeling: { labels: [] }, requesting: {} };
 }
 
 export function trace(message: string): void {

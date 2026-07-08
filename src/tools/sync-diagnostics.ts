@@ -1,5 +1,5 @@
 import path from "node:path";
-import { discoverSyncs, type SyncModel } from "../repo-model/syncs.ts";
+import { discoverSyncs } from "../repo-model/syncs.ts";
 import { discoverConcepts } from "../repo-model/concepts.ts";
 import type { CdhConfig } from "../config.ts";
 import type { RepoContract } from "../repo-contract.ts";
@@ -16,6 +16,8 @@ export interface SyncDiagnosticsReport {
   diagnostics: SyncDiagnostic[];
 }
 
+const HEAVY_WHERE_THRESHOLD = 2;
+
 export async function runSyncDiagnostics(
   cwd: string,
   config: CdhConfig,
@@ -25,14 +27,6 @@ export async function runSyncDiagnostics(
   const concepts = await discoverConcepts(cwd, config, contract);
   const diagnostics: SyncDiagnostic[] = [];
 
-  const conceptActions = new Map<string, Set<string>>();
-  const conceptQueries = new Map<string, Set<string>>();
-
-  for (const concept of concepts) {
-    conceptActions.set(concept.name, new Set(concept.actions.map((a) => a.name)));
-    conceptQueries.set(concept.name, new Set(concept.queries.map((q) => q.name)));
-  }
-
   const allConceptRefs = new Set<string>();
   for (const concept of concepts) {
     for (const a of concept.actions) allConceptRefs.add(`${concept.name}.${a.name}`);
@@ -41,25 +35,22 @@ export async function runSyncDiagnostics(
 
   for (const sync of syncs) {
     const relPath = path.relative(cwd, sync.file);
+    const hasTest = Boolean(sync.testPath);
 
     if (allConceptRefs.size > 0) {
       for (const wa of sync.whenActions) {
-        if (sync.parser === "legacy") {
-          const [cn, an] = wa.split(".");
-          if (cn && an && !allConceptRefs.has(wa)) {
-            diagnostics.push({
-              severity: "warn",
-              rule: "unknown-when-action",
-              path: relPath,
-              message: `when action '${wa}' does not match any known concept action`
-            });
-          }
+        if (!allConceptRefs.has(wa)) {
+          diagnostics.push({
+            severity: "warn",
+            rule: "unknown-when-action",
+            path: relPath,
+            message: `when action '${wa}' does not match any known concept action`
+          });
         }
       }
 
       for (const ta of sync.thenActions) {
-        const [cn, an] = ta.split(".");
-        if (cn && an && !allConceptRefs.has(ta)) {
+        if (!allConceptRefs.has(ta)) {
           diagnostics.push({
             severity: "warn",
             rule: "unknown-then-action",
@@ -70,43 +61,38 @@ export async function runSyncDiagnostics(
       }
 
       for (const qr of sync.queryRefs) {
-        const [cn, an] = qr.split(".");
-        if (cn && an) {
-          const queries = conceptQueries.get(cn);
-          if (!queries || !queries.has(an)) {
-            diagnostics.push({
-              severity: "warn",
-              rule: "unknown-query-ref",
-              path: relPath,
-              message: `query ref '${qr}' does not match any known concept query`
-            });
-          }
+        if (!allConceptRefs.has(qr)) {
+          diagnostics.push({
+            severity: "warn",
+            rule: "unknown-query-ref",
+            path: relPath,
+            message: `query ref '${qr}' does not match any known concept query`
+          });
         }
       }
     }
 
-    if (!sync.testPath) {
+    if (!hasTest) {
       diagnostics.push({
         severity: "warn",
         rule: "missing-test",
         path: relPath,
         message: "No sibling test file found"
       });
-    }
-
-    if (sync.hasBranches && !sync.testPath) {
+    } else if (sync.hasBranches) {
       diagnostics.push({
-        severity: "warn",
+        severity: "info",
         rule: "untested-branches",
         path: relPath,
-        message: "Sync has branches (on/onError) without tests"
+        message: "Sync has branches (on/branch/onError). Ensure tests cover all paths."
       });
     }
 
     if (sync.endpointPaths.length > 0) {
-      const hasRespond = sync.thenActions.some((ta) =>
-        ta.includes("respond") || ta.includes("Respond")
-      );
+      const hasRespond = sync.thenActions.some((ta) => {
+        const actionName = ta.split(".").pop() ?? "";
+        return actionName.toLowerCase() === "respond";
+      });
       if (!hasRespond) {
         diagnostics.push({
           severity: "warn",
@@ -118,9 +104,8 @@ export async function runSyncDiagnostics(
     }
   }
 
-  const orphanedActions = findOrphanedActions(syncs, allConceptRefs);
-
-  for (const action of orphanedActions) {
+  const orphaned = findOrphanedActions(syncs, allConceptRefs);
+  for (const action of orphaned) {
     diagnostics.push({
       severity: "info",
       rule: "orphan-action",
@@ -129,20 +114,20 @@ export async function runSyncDiagnostics(
     });
   }
 
-  const heavyWhere = findHeavyWhere(syncs);
+  const heavyWhere = syncs.filter((s) => s.hasWhere && s.queryRefs.length > HEAVY_WHERE_THRESHOLD);
   for (const hw of heavyWhere) {
     diagnostics.push({
       severity: "info",
       rule: "heavy-where",
       path: path.relative(cwd, hw.file),
-      message: `Sync has where clause with queries: ${hw.queryRefs.join(", ")}`
+      message: `Sync has ${hw.queryRefs.length} query refs in where clause: ${hw.queryRefs.join(", ")}`
     });
   }
 
   return { syncs: syncs.length, diagnostics };
 }
 
-function findOrphanedActions(syncs: SyncModel[], allConceptRefs: Set<string>): string[] {
+function findOrphanedActions(syncs: import("../repo-model/syncs.ts").SyncModel[], allConceptRefs: Set<string>): string[] {
   const referenced = new Set<string>();
 
   for (const sync of syncs) {
@@ -152,10 +137,6 @@ function findOrphanedActions(syncs: SyncModel[], allConceptRefs: Set<string>): s
   }
 
   return [...allConceptRefs].filter((ref) => !referenced.has(ref)).sort();
-}
-
-function findHeavyWhere(syncs: SyncModel[]): SyncModel[] {
-  return syncs.filter((sync) => sync.hasWhere && sync.queryRefs.length > 2);
 }
 
 export function formatDiagnostics(report: SyncDiagnosticsReport): string {

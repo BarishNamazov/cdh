@@ -5,6 +5,18 @@ import { loadRepoContract } from "../src/repo-contract.ts";
 import { createRuleEngine } from "../src/rules/rule-engine.ts";
 import { Journal } from "../src/journal/journal.ts";
 import { runVerification } from "../src/verify/runner.ts";
+import type { StageResult } from "../src/verify/types.ts";
+
+const ENV_CAST = process.env as Record<string, string | undefined>;
+
+function stageIcon(status: StageResult["status"]): string {
+  switch (status) {
+    case "pass": return "PASS";
+    case "skip": return "SKIP";
+    case "warn": return "WARN";
+    default: return "FAIL";
+  }
+}
 
 export default function verification(pi: ExtensionAPI): void {
   pi.registerTool({
@@ -20,7 +32,7 @@ export default function verification(pi: ExtensionAPI): void {
       const cwd = ctx.cwd ?? process.cwd();
       const config = await loadConfig(cwd);
       const journal = new Journal(cwd, config);
-      journal.initRun(process.env as Record<string, string | undefined>);
+      journal.initRun(ENV_CAST);
       journal.emitDecision(params.title, params.body, params.alternatives);
       return {
         content: [{ type: "text", text: `Decision recorded: ${params.title}` }],
@@ -28,6 +40,7 @@ export default function verification(pi: ExtensionAPI): void {
       };
     }
   });
+
   pi.registerTool({
     name: "run_verification",
     label: "Run Verification",
@@ -41,7 +54,7 @@ export default function verification(pi: ExtensionAPI): void {
       const { contract } = await loadRepoContract(cwd, config);
       const engine = createRuleEngine(cwd, config, contract);
       const journal = new Journal(cwd, config);
-      journal.initRun(process.env as Record<string, string | undefined>);
+      journal.initRun(ENV_CAST);
 
       const results = await runVerification({
         cwd,
@@ -54,11 +67,7 @@ export default function verification(pi: ExtensionAPI): void {
 
       const lines: string[] = [];
       for (const result of results) {
-        const icon = result.status === "pass" ? "PASS"
-          : result.status === "skip" ? "SKIP"
-          : result.status === "warn" ? "WARN"
-          : "FAIL";
-        lines.push(`  ${icon}  ${result.stage} (${result.durationMs}ms) — ${result.summary}`);
+        lines.push(`  ${stageIcon(result.status)}  ${result.stage} (${result.durationMs}ms) — ${result.summary}`);
       }
 
       const failed = results.filter((r) => r.status === "fail");
@@ -73,14 +82,14 @@ export default function verification(pi: ExtensionAPI): void {
     }
   });
 
-  pi.on("agent_end", async (event, ctx) => {
+  pi.on("agent_end", async (_event, ctx) => {
     const cwd = ctx.cwd ?? process.cwd();
-    const config = await loadConfig(cwd);
 
     try {
+      const config = await loadConfig(cwd);
       const { contract } = await loadRepoContract(cwd, config);
       const journal = new Journal(cwd, config);
-      journal.initRun(process.env as Record<string, string | undefined>);
+      journal.initRun(ENV_CAST);
       const engine = createRuleEngine(cwd, config, contract);
 
       const results = await runVerification({
@@ -100,7 +109,8 @@ export default function verification(pi: ExtensionAPI): void {
           `${failed.length} stage(s) failed: ${failed.map((r) => r.stage).join(", ")}`
         );
       }
-    } catch {
+    } catch (err) {
+      console.error(`[CDH] agent_end verification error: ${err instanceof Error ? err.message : String(err)}`);
     }
   });
 }

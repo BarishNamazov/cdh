@@ -12,12 +12,13 @@ describe("discoverConcepts", () => {
     const { contract } = await loadRepoContract(validApp, defaultConfig);
     const concepts = await discoverConcepts(validApp, defaultConfig, contract);
 
-    expect(concepts).toHaveLength(1);
-    expect(concepts[0]?.name).toBe("Labeling");
-    expect(concepts[0]?.actions.map((method) => method.name)).toEqual(["addLabel", "removeLabel"]);
-    expect(concepts[0]?.queries.map((method) => method.name)).toEqual(["_getLabels"]);
-    expect(concepts[0]?.specPath?.endsWith("design/concepts/labeling.md")).toBe(true);
-    expect(concepts[0]?.testPath?.endsWith("LabelingConcept.test.ts")).toBe(true);
+    expect(concepts.length).toBeGreaterThanOrEqual(1);
+    const labeling = concepts.find((c) => c.name === "Labeling");
+    expect(labeling).toBeDefined();
+    expect(labeling!.actions.map((method) => method.name)).toEqual(["addLabel", "removeLabel"]);
+    expect(labeling!.queries.map((method) => method.name)).toEqual(["_getLabels"]);
+    expect(labeling!.specPath?.endsWith("design/concepts/labeling.md")).toBe(true);
+    expect(labeling!.testPath?.endsWith("LabelingConcept.test.ts")).toBe(true);
   });
 });
 

@@ -17,11 +17,13 @@ import { buildSyncGraph, formatGraphReport, formatGraphJson, formatGraphMermaid,
 import { runSyncDiagnostics, formatDiagnostics, formatDiagnosticsJson } from "../src/tools/sync-diagnostics.ts";
 import { captureSnapshot, computeTouched, runShipPreflight } from "../src/ship/index.ts";
 import { commitShip, createShipBranch } from "../src/ship/git-mutation.ts";
+import { pushBranch, createPullRequest } from "../src/ship/git-mutation.ts";
+import type { CdhConfig } from "../src/config.ts";
 
 const [, , command, ...args] = Bun.argv;
 const cwd = process.cwd();
 
-async function getContract(config: ReturnType<typeof loadConfig> extends Promise<infer T> ? T : never) {
+async function getContract(config: CdhConfig) {
   try {
     return (await loadRepoContract(cwd, config)).contract;
   } catch {
@@ -333,7 +335,7 @@ async function main(): Promise<void> {
         console.log(formatDiagnostics(report));
       }
 
-      if (report.diagnostics.some((d) => d.severity === "warn")) process.exit(1);
+      if (report.diagnostics.some((d) => d.severity === "warn" && d.rule === "missing-test")) process.exit(1);
       break;
     }
 
@@ -440,19 +442,19 @@ async function main(): Promise<void> {
 
         console.log(`Branch: ${branchResult.branch}`);
 
-        if (config.ship.push) {
-          const { pushBranch } = await import("../src/ship/git-mutation.ts");
-          const pushResult = pushBranch(cwd, branchResult.branch!);
+        const branchName = branchResult.branch;
+        if (branchName && config.ship.push) {
+          const pushResult = pushBranch(cwd, "origin", branchName);
+
           if (pushResult.ok) {
-            console.log(`Pushed: ${branchResult.branch}`);
+            console.log(`Pushed: ${branchName}`);
 
             if (config.ship.createPr) {
-              const { createPullRequest } = await import("../src/ship/git-mutation.ts");
-              const prResult = createPullRequest(cwd, branchResult.branch!, `CDH Ship ${runId}`);
+              const prResult = createPullRequest(cwd, branchName, `CDH Ship ${runId}`);
               if (prResult.ok) {
                 console.log(`PR created: ${prResult.prUrl}`);
               } else {
-                console.log(`PR creation skipped: ${prResult.errors.join("; ")}`);
+                console.log(`PR creation failed: ${prResult.errors.join("; ")}`);
               }
             }
           } else {

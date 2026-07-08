@@ -1,25 +1,12 @@
 import path from "node:path";
 import { discoverSyncs, type SyncModel } from "../repo-model/syncs.ts";
-import type { CdhConfig } from "../config.ts";
-import type { RepoContract } from "../repo-contract.ts";
-
-export interface SyncListEntry {
-  file: string;
-  name: string;
-  whenActions: string[];
-  thenActions: string[];
-  queryRefs: string[];
-  endpointPaths: string[];
-  hasWhere: boolean;
-  hasBranches: boolean;
-  hasTests: boolean;
-  parser: string;
-}
+import { type CdhConfig } from "../config.ts";
+import { type RepoContract } from "../repo-contract.ts";
 
 export async function listSyncs(
   cwd: string,
   config: CdhConfig,
-  contract: RepoContract,
+  _contract: RepoContract,
   filterConcept?: string
 ): Promise<SyncModel[]> {
   const syncs = await discoverSyncs(cwd, config);
@@ -53,9 +40,8 @@ export function formatSyncs(syncs: SyncModel[], cwd: string, filterConcept?: str
   for (const sync of syncs) {
     const relPath = path.relative(cwd, sync.file);
     const name = path.basename(sync.file, ".sync.ts");
-    lines.push(`## ${name}`);
+    lines.push(`${name}`);
     lines.push(`  File: ${relPath}`);
-    lines.push(`  Parser: ${sync.parser}`);
     lines.push(`  When: ${sync.whenActions.join(", ") || "none"}`);
     lines.push(`  Then: ${sync.thenActions.join(", ") || "none"}`);
     if (sync.queryRefs.length > 0) {
@@ -64,12 +50,8 @@ export function formatSyncs(syncs: SyncModel[], cwd: string, filterConcept?: str
     if (sync.endpointPaths.length > 0) {
       lines.push(`  Endpoints: ${sync.endpointPaths.join(", ")}`);
     }
-    if (sync.hasWhere) {
-      lines.push(`  Where: yes`);
-    }
-    if (sync.hasBranches) {
-      lines.push(`  Branches: yes`);
-    }
+    if (sync.hasWhere) lines.push(`  Where: yes`);
+    if (sync.hasBranches) lines.push(`  Branches: yes`);
     lines.push(`  Tests: ${sync.testPath ? "yes" : "no"}`);
     lines.push("");
   }

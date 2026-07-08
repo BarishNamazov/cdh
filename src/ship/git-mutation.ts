@@ -1,5 +1,3 @@
-import { execSync } from "node:child_process";
-import path from "node:path";
 import type { CdhConfig } from "../config.ts";
 
 export interface GitMutationResult {
@@ -11,18 +9,15 @@ export interface GitMutationResult {
 }
 
 function runGit(cwd: string, args: string[]): { success: boolean; output: string } {
-  try {
-    const out = execSync(`git ${args.join(" ")}`, {
-      cwd,
-      encoding: "utf8",
-      stdio: "pipe",
-      timeout: 30_000
-    }).trim();
-    return { success: true, output: out };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return { success: false, output: msg };
-  }
+  const proc = Bun.spawnSync(["git", ...args], {
+    cwd,
+    stdout: "pipe",
+    stderr: "pipe"
+  });
+  return {
+    success: proc.exitCode === 0,
+    output: new TextDecoder().decode(proc.stdout).trim()
+  };
 }
 
 export function commitShip(
@@ -32,25 +27,20 @@ export function commitShip(
   touchedFiles: string[],
   message: string = "ship: CDH auto-commit"
 ): GitMutationResult {
-  const errors: string[] = [];
-
-  for (const file of touchedFiles) {
-    const result = runGit(cwd, ["add", "--", file]);
-    if (!result.success) {
-      errors.push(`Failed to stage ${file}: ${result.output}`);
-    }
+  if (touchedFiles.length === 0) {
+    return { ok: false, errors: ["No files to commit."] };
   }
 
-  if (errors.length > 0) {
-    return { ok: false, errors };
+  const addResult = runGit(cwd, ["add", "--", ...touchedFiles]);
+  if (!addResult.success) {
+    return { ok: false, errors: [`Failed to stage files: ${addResult.output}`] };
   }
 
   const fullMessage = `${message}\n\nCdh-Run: ${runId}`;
   const commitResult = runGit(cwd, ["commit", "-m", fullMessage]);
 
   if (!commitResult.success) {
-    errors.push(`Failed to commit: ${commitResult.output}`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Failed to commit: ${commitResult.output}`] };
   }
 
   const shaResult = runGit(cwd, ["rev-parse", "HEAD"]);
@@ -64,7 +54,6 @@ export function createShipBranch(
   config: CdhConfig,
   runId: string
 ): GitMutationResult {
-  const errors: string[] = [];
   let branchName = `${config.ship.branchPrefix}${runId}`;
 
   const checkResult = runGit(cwd, ["rev-parse", "--verify", branchName]);
@@ -75,8 +64,7 @@ export function createShipBranch(
 
   const result = runGit(cwd, ["checkout", "-b", branchName]);
   if (!result.success) {
-    errors.push(`Failed to create branch ${branchName}: ${result.output}`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Failed to create branch ${branchName}: ${result.output}`] };
   }
 
   return { ok: true, branch: branchName, errors: [] };
@@ -84,14 +72,12 @@ export function createShipBranch(
 
 export function pushBranch(
   cwd: string,
+  remote: string,
   branch: string
 ): GitMutationResult {
-  const errors: string[] = [];
-
-  const result = runGit(cwd, ["push", "-u", "origin", branch]);
+  const result = runGit(cwd, ["push", "-u", remote, branch]);
   if (!result.success) {
-    errors.push(`Failed to push ${branch}: ${result.output}`);
-    return { ok: false, errors };
+    return { ok: false, errors: [`Failed to push ${branch}: ${result.output}`] };
   }
 
   return { ok: true, branch, errors: [] };
@@ -103,24 +89,26 @@ export function createPullRequest(
   title: string,
   body: string = ""
 ): GitMutationResult {
-  const errors: string[] = [];
-
   try {
-    const prBody = body || `Automated CDH ship.`;
-    const result = execSync(
-      `gh pr create --head "${branch}" --title "${title}" --body "${prBody}"`,
-      {
-        cwd,
-        encoding: "utf8",
-        stdio: "pipe",
-        timeout: 30_000
-      }
-    ).trim();
+    const proc = Bun.spawnSync([
+      "gh", "pr", "create",
+      "--head", branch,
+      "--title", title,
+      "--body", body || "Automated CDH ship."
+    ], {
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe"
+    });
 
-    return { ok: true, branch, prUrl: result, errors: [] };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    errors.push(`Failed to create PR: ${msg}`);
-    return { ok: false, errors };
+    if (proc.exitCode !== 0) {
+      const errMsg = new TextDecoder().decode(proc.stderr).trim();
+      return { ok: false, errors: [`Failed to create PR: ${errMsg}`] };
+    }
+
+    const prUrl = new TextDecoder().decode(proc.stdout).trim();
+    return { ok: true, branch, prUrl, errors: [] };
+  } catch (err) {
+    return { ok: false, errors: [`Failed to create PR: ${err instanceof Error ? err.message : String(err)}`] };
   }
 }

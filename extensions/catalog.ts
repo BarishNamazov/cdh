@@ -1,11 +1,44 @@
-import type { ExtensionAPI, ToolCallEvent } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import { readdir } from "node:fs/promises";
 import { loadConfig } from "../src/config.ts";
+import { copyCatalogConcept } from "../src/catalog-lib.ts";
+import { loadRepoContract } from "../src/repo-contract.ts";
 
 const BUILTIN_CATALOG = path.resolve(import.meta.dir, "..", "catalog", "concepts");
+const REGISTRY_PATH = path.resolve(import.meta.dir, "..", "catalog", "registry.json");
+
+interface RegistryEntry {
+  id: string;
+  name: string;
+  version: string;
+  summary: string;
+  tags: string[];
+  pairsWith?: string[];
+  files: string[];
+}
+
+interface Registry {
+  concepts: RegistryEntry[];
+}
+
+let cachedRegistry: Registry | null = null;
+
+function getRegistry(): Registry | null {
+  if (cachedRegistry) return cachedRegistry;
+  if (!existsSync(REGISTRY_PATH)) return null;
+  cachedRegistry = JSON.parse(readFileSync(REGISTRY_PATH, "utf8"));
+  return cachedRegistry;
+}
+
+function findEntry(name: string): RegistryEntry | undefined {
+  const registry = getRegistry();
+  if (!registry) return undefined;
+  return registry.concepts.find(
+    (c) => c.name.toLowerCase() === name.toLowerCase()
+  );
+}
 
 export default function catalog(pi: ExtensionAPI): void {
   pi.registerTool({
@@ -15,31 +48,24 @@ export default function catalog(pi: ExtensionAPI): void {
     parameters: Type.Object({
       query: Type.Optional(Type.String()),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const cwd = ctx.cwd ?? process.cwd();
-      const config = await loadConfig(cwd);
-      const registryPath = path.resolve(import.meta.dir, "..", "catalog", "registry.json");
+    async execute(_toolCallId, params) {
+      const registry = getRegistry();
+      const concepts = registry?.concepts ?? [];
+      const q = params.query;
 
-      let concepts: Array<{ id: string; name: string; version: string; summary: string; tags: string[] }> = [];
-
-      if (existsSync(registryPath)) {
-        const registry = JSON.parse(readFileSync(registryPath, "utf8"));
-        concepts = registry.concepts ?? [];
-      }
-
-      const filtered = params.query
+      const filtered = q
         ? concepts.filter(
             (c) =>
-              c.name.toLowerCase().includes(params.query!.toLowerCase()) ||
-              c.summary.toLowerCase().includes(params.query!.toLowerCase()) ||
-              c.tags.some((t) => t.toLowerCase().includes(params.query!.toLowerCase()))
+              c.name.toLowerCase().includes(q.toLowerCase()) ||
+              c.summary.toLowerCase().includes(q.toLowerCase()) ||
+              c.tags.some((t) => t.toLowerCase().includes(q.toLowerCase()))
           )
         : concepts;
 
       const lines: string[] = [`Catalog concepts (${filtered.length}):`, ""];
       for (const c of filtered) {
         lines.push(`  ${c.name} (${c.version}): ${c.summary}`);
-        lines.push(`    Tags: ${c.tags.join(", ")}`);
+        if (c.tags.length > 0) lines.push(`    Tags: ${c.tags.join(", ")}`);
       }
 
       return {
@@ -56,32 +82,20 @@ export default function catalog(pi: ExtensionAPI): void {
     parameters: Type.Object({
       name: Type.String(),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const cwd = ctx.cwd ?? process.cwd();
-      const config = await loadConfig(cwd);
-
-      const registryPath = path.resolve(import.meta.dir, "..", "catalog", "registry.json");
-      let entry = null;
-
-      if (existsSync(registryPath)) {
-        const registry = JSON.parse(readFileSync(registryPath, "utf8"));
-        entry = (registry.concepts ?? []).find(
-          (c: { name: string }) => c.name.toLowerCase() === params.name.toLowerCase()
-        );
-      }
+    async execute(_toolCallId, params) {
+      const entry = findEntry(params.name);
+      const details = { found: entry !== null, entry: entry ?? undefined };
 
       if (!entry) {
         return {
           content: [{ type: "text", text: `Catalog concept '${params.name}' not found.` }],
-          details: { found: false }
+          details
         };
       }
 
       const conceptDir = path.join(BUILTIN_CATALOG, entry.name);
       const specPath = path.join(conceptDir, "concept.md");
       const spec = existsSync(specPath) ? readFileSync(specPath, "utf8") : null;
-      const sourcePath = path.join(conceptDir, `${entry.name}Concept.ts`);
-      const source = existsSync(sourcePath) ? readFileSync(sourcePath, "utf8") : null;
 
       const lines: string[] = [
         `# ${entry.name} (${entry.version})`,
@@ -95,14 +109,9 @@ export default function catalog(pi: ExtensionAPI): void {
         lines.push(spec);
       }
 
-      if (source) {
-        lines.push("## Source");
-        lines.push(source);
-      }
-
       return {
         content: [{ type: "text", text: lines.join("\n") }],
-        details: { entry, spec, source }
+        details
       };
     }
   });
@@ -120,16 +129,7 @@ export default function catalog(pi: ExtensionAPI): void {
       const cwd = ctx.cwd ?? process.cwd();
       const config = await loadConfig(cwd);
 
-      const registryPath = path.resolve(import.meta.dir, "..", "catalog", "registry.json");
-      let entry = null;
-
-      if (existsSync(registryPath)) {
-        const registry = JSON.parse(readFileSync(registryPath, "utf8"));
-        entry = (registry.concepts ?? []).find(
-          (c: { name: string }) => c.name.toLowerCase() === params.name.toLowerCase()
-        );
-      }
-
+      const entry = findEntry(params.name);
       if (!entry) {
         return {
           content: [{ type: "text", text: `Catalog concept '${params.name}' not found.` }],
@@ -137,8 +137,6 @@ export default function catalog(pi: ExtensionAPI): void {
         };
       }
 
-      const { copyCatalogConcept } = await import("../src/catalog-lib.ts");
-      const { loadRepoContract } = await import("../src/repo-contract.ts");
       const { contract } = await loadRepoContract(cwd, config);
 
       try {
