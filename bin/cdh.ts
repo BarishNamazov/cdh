@@ -7,6 +7,7 @@ import { loadRepoContract } from "../src/repo-contract.ts";
 import { Journal } from "../src/journal/journal.ts";
 import { createRuleEngine } from "../src/rules/rule-engine.ts";
 import { runVerification } from "../src/verify/runner.ts";
+import { formatStageResults } from "../src/verify/format.ts";
 import { traceSyncAction, formatTraceResult } from "../src/tools/trace-sync.ts";
 import { listSyncs, formatSyncs } from "../src/tools/list-syncs.ts";
 import { listConcepts, formatConcepts } from "../src/tools/list-concepts.ts";
@@ -18,6 +19,8 @@ import { runSyncDiagnostics, formatDiagnostics, formatDiagnosticsJson } from "..
 import { captureSnapshot, computeTouched, runShipPreflight } from "../src/ship/index.ts";
 import { commitShip, createShipBranch } from "../src/ship/git-mutation.ts";
 import { pushBranch, createPullRequest } from "../src/ship/git-mutation.ts";
+import { discoverConcepts } from "../src/repo-model/concepts.ts";
+import { discoverSyncs } from "../src/repo-model/syncs.ts";
 import type { CdhConfig } from "../src/config.ts";
 
 const [, , command, ...args] = Bun.argv;
@@ -77,12 +80,9 @@ async function main(): Promise<void> {
       });
 
       console.log(`\nVerification (${tier}):`);
-      for (const result of results) {
-        const icon = result.status === "pass" ? "PASS"
-          : result.status === "skip" ? "SKIP"
-          : result.status === "warn" ? "WARN"
-          : "FAIL";
-        console.log(`  ${icon}  ${result.stage} (${result.durationMs}ms) — ${result.summary}`);
+      const lines = formatStageResults(results);
+      for (const line of lines) {
+        console.log(line);
       }
 
       const failed = results.filter((r) => r.status === "fail");
@@ -258,10 +258,8 @@ async function main(): Promise<void> {
           });
         }
 
-        const { discoverConcepts: dc } = await import("../src/repo-model/concepts.ts");
-        const { discoverSyncs: ds } = await import("../src/repo-model/syncs.ts");
-        const concepts = await dc(cwd, config, contract);
-        const syncs = await ds(cwd, config);
+        const concepts = await discoverConcepts(cwd, config, contract);
+        const syncs = await discoverSyncs(cwd, config);
 
         for (const concept of concepts) {
           if (!concept.specPath) {
@@ -395,12 +393,8 @@ async function main(): Promise<void> {
         tier: "ship"
       });
 
-      for (const result of results) {
-        const icon = result.status === "pass" ? "PASS"
-          : result.status === "skip" ? "SKIP"
-          : result.status === "warn" ? "WARN"
-          : "FAIL";
-        console.log(`  ${icon}  ${result.stage} (${result.durationMs}ms) — ${result.summary}`);
+      for (const line of formatStageResults(results)) {
+        console.log(line);
       }
 
       const failed = results.filter((r) => r.status === "fail");

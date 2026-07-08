@@ -4,11 +4,13 @@ import { createGatePolicy } from "../src/gate-policy.ts";
 
 export default function gates(pi: ExtensionAPI): void {
   let policy: ReturnType<typeof createGatePolicy> | null = null;
+  let policyCwd: string | null = null;
 
   async function getPolicy(cwd: string) {
-    if (!policy) {
+    if (!policy || policyCwd !== cwd) {
       const config = await loadConfig(cwd);
       policy = createGatePolicy(cwd, config);
+      policyCwd = cwd;
     }
     return policy;
   }

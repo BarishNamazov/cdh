@@ -1,8 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
+import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { loadConfig } from "../src/config.ts";
 import { Journal } from "../src/journal/journal.ts";
 
@@ -63,105 +65,39 @@ const AGENTS: Record<string, AgentSpec> = {
   }
 };
 
-// ----- Subprocess helpers -----
+// ----- Types -----
+
+interface UsageStats {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+  contextTokens: number;
+  turns: number;
+}
 
 interface AgentResult {
   agent: string;
   task: string;
   exitCode: number;
-  output: string;
+  messages: Record<string, unknown>[];
+  stderr: string;
+  usage: UsageStats;
+  model?: string;
+  stopReason?: string;
+  errorMessage?: string;
+  step?: number;
 }
 
-function quoted(s: string): string {
-  return `"${s.replace(/"/g, '\\"')}"`;
+interface OrchestratorDetails {
+  mode: "single" | "parallel" | "chain";
+  results: AgentResult[];
 }
 
-function buildAgentPrompt(agent: AgentSpec, task: string): string {
-  return [
-    `You are the ${agent.label} agent. ${agent.system}`,
-    ``,
-    `Complete this task and output your result:`,
-    task,
-    ``,
-    `After completing the task, run run_verification with tier quick if applicable.`,
-    `Call record_decision with title and body to record significant decisions made during this work.`
-  ].join("\n");
-}
+// ----- Helpers -----
 
-function executePi(cwd: string, prompt: string, tools: string[], env: Record<string, string>): AgentResult {
-  const result = spawnSync("pi", [
-    "--print",
-    "--mode", "json",
-    "--tools", tools.join(","),
-    prompt
-  ], {
-    cwd,
-    env: { ...process.env, ...env },
-    timeout: 300_000,
-    encoding: "utf-8",
-    maxBuffer: 10 * 1024 * 1024
-  });
-
-  return {
-    agent: "subagent",
-    task: prompt.slice(0, 200),
-    exitCode: result.status ?? 1,
-    output: result.stdout ?? ""
-  };
-}
-
-// ----- Orchestration -----
-
-function runSingle(
-  cwd: string, task: string, agent: AgentSpec, runDir: string
-): AgentResult {
-  const prompt = buildAgentPrompt(agent, task);
-  return executePi(cwd, prompt, agent.tools, { CDH_RUN_DIR: runDir });
-}
-
-function runChain(
-  cwd: string, tasks: string[], agent: AgentSpec, runDir: string
-): AgentResult[] {
-  const results: AgentResult[] = [];
-  const priorOutputs: string[] = [];
-
-  for (let i = 0; i < tasks.length; i++) {
-    const task = tasks[i]!;
-    let fullTask = task;
-
-    if (priorOutputs.length > 0) {
-      fullTask += "\n\n--- Previous step outputs ---\n" +
-        priorOutputs.map((o, j) => `Step ${j + 1}: ${o.slice(0, 3000)}`).join("\n\n");
-    }
-
-    const result = executePi(cwd, buildAgentPrompt(agent, fullTask), agent.tools, { CDH_RUN_DIR: runDir });
-    results.push(result);
-
-    if (result.exitCode === 0 && result.output) {
-      const stepDir = path.join(runDir, `step-${i}`);
-      mkdirSync(stepDir, { recursive: true });
-      priorOutputs.push(result.output);
-    }
-  }
-
-  return results;
-}
-
-function runParallel(
-  cwd: string, tasks: string[], agent: AgentSpec, agents: AgentSpec[], runDir: string
-): AgentResult[] {
-  // No real concurrency in spawnSync, but we can run sequentially and pretend
-  const results: AgentResult[] = [];
-  const batch = Math.min(tasks.length, 3);
-
-  for (let i = 0; i < batch; i++) {
-    const task = tasks[i]!;
-    const a = agents[i] ?? agent;
-    results.push(runSingle(cwd, task, a, path.join(runDir, `agent-${i}`)));
-  }
-
-  return results;
-}
+const CONCURRENCY_LIMIT = 4;
 
 function resolveAgent(name: string): AgentSpec {
   return AGENTS[name] ?? {
@@ -169,6 +105,225 @@ function resolveAgent(name: string): AgentSpec {
     tools: ["read", "write", "edit", "bash"],
     system: `You are the ${name} agent. Complete the task and report your result.`
   };
+}
+
+function zeroUsage(): UsageStats {
+  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 };
+}
+
+function getFinalOutput(messages: Record<string, unknown>[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]!;
+    if ((msg as { role?: string }).role === "assistant") {
+      for (const part of (msg as { content?: { type: string; text: string }[] }).content ?? []) {
+        if (part.type === "text") return part.text;
+      }
+    }
+  }
+  return "";
+}
+
+function isFailed(result: AgentResult): boolean {
+  return result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
+}
+
+// ----- Spawn & JSONL streaming -----
+
+async function writeTempFile(agentName: string, content: string): Promise<{ filePath: string; tmpDir: string }> {
+  const tmpDir = await mkdtemp(path.join(tmpdir(), "cdh-agent-"));
+  const safeName = agentName.replace(/[^\w.-]+/g, "_");
+  const filePath = path.join(tmpDir, `prompt-${safeName}.txt`);
+  await writeFile(filePath, content, { encoding: "utf-8", mode: 0o600 });
+  return { filePath, tmpDir };
+}
+
+async function runSingleAgent(
+  defaultCwd: string,
+  agentName: string,
+  task: string,
+  step?: number,
+  signal?: AbortSignal
+): Promise<AgentResult> {
+  const agent = resolveAgent(agentName);
+
+  const args: string[] = ["--print", "--mode", "json", "--no-session"];
+  if (agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
+
+  const systemPrompt = `You are the ${agent.label} agent. ${agent.system}`;
+  const { filePath: promptPath, tmpDir: promptDir } = await writeTempFile(agentName, systemPrompt);
+  args.push("--append-system-prompt", promptPath);
+
+  args.push(`Task: ${task}`);
+
+  const result: AgentResult = {
+    agent: agentName,
+    task,
+    exitCode: 0,
+    messages: [],
+    stderr: "",
+    usage: zeroUsage(),
+    step
+  };
+
+  let wasAborted = false;
+
+  const exitCode = await new Promise<number>((resolve) => {
+    const proc = spawn("pi", args, {
+      cwd: defaultCwd,
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let buffer = "";
+
+    const processLine = (line: string) => {
+      if (!line.trim()) return;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        return;
+      }
+
+      if (event.type === "message_end" && event.message) {
+        const msg = event.message as Record<string, unknown>;
+        result.messages.push(msg);
+
+        if ((msg as { role?: string }).role === "assistant") {
+          result.usage.turns++;
+          const usage = (msg as { usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number }; totalTokens?: number; } }).usage;
+          if (usage) {
+            result.usage.input += usage.input || 0;
+            result.usage.output += usage.output || 0;
+            result.usage.cacheRead += usage.cacheRead || 0;
+            result.usage.cacheWrite += usage.cacheWrite || 0;
+            result.usage.cost += usage.cost?.total || 0;
+            result.usage.contextTokens = usage.totalTokens || 0;
+          }
+          if (!result.model && (msg as { model?: string }).model) {
+            result.model = (msg as { model?: string }).model;
+          }
+          if ((msg as { stopReason?: string }).stopReason) {
+            result.stopReason = (msg as { stopReason?: string }).stopReason;
+          }
+          if ((msg as { errorMessage?: string }).errorMessage) {
+            result.errorMessage = (msg as { errorMessage?: string }).errorMessage;
+          }
+        }
+      }
+
+      if (event.type === "tool_result_end" && event.message) {
+        result.messages.push(event.message as Record<string, unknown>);
+      }
+    };
+
+    proc.stdout!.on("data", (data: Buffer) => {
+      buffer += data.toString();
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) processLine(line);
+    });
+
+    proc.stderr!.on("data", (data: Buffer) => {
+      result.stderr += data.toString();
+    });
+
+    proc.on("close", (code) => {
+      if (buffer.trim()) processLine(buffer);
+      resolve(code ?? 0);
+    });
+
+    proc.on("error", () => {
+      resolve(1);
+    });
+
+    if (signal) {
+      const killProc = () => {
+        wasAborted = true;
+        proc.kill("SIGTERM");
+        setTimeout(() => {
+          if (!proc.killed) proc.kill("SIGKILL");
+        }, 5000);
+      };
+      if (signal.aborted) killProc();
+      else signal.addEventListener("abort", killProc, { once: true });
+    }
+  });
+
+  result.exitCode = exitCode;
+  if (wasAborted) {
+    result.stopReason = "aborted";
+    result.errorMessage = "Subagent was aborted";
+  }
+
+  try {
+    await unlink(promptPath);
+    await rm(promptDir, { recursive: true, force: true });
+  } catch { /* ignore */ }
+
+  return result;
+}
+
+// ----- Concurrency-limited parallel -----
+
+async function mapWithConcurrencyLimit<TIn, TOut>(
+  items: TIn[],
+  concurrency: number,
+  fn: (item: TIn, index: number) => Promise<TOut>
+): Promise<TOut[]> {
+  if (items.length === 0) return [];
+  const limit = Math.max(1, Math.min(concurrency, items.length));
+  const results: TOut[] = new Array(items.length);
+  let nextIndex = 0;
+
+  const workers = new Array(limit).fill(null).map(async () => {
+    while (true) {
+      const current = nextIndex++;
+      if (current >= items.length) return;
+      results[current] = await fn(items[current]!, current);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
+// ----- Parallel execution -----
+
+async function runParallel(
+  cwd: string,
+  tasks: string[],
+  agent: AgentSpec,
+  signal?: AbortSignal
+): Promise<AgentResult[]> {
+  return mapWithConcurrencyLimit(tasks, CONCURRENCY_LIMIT, async (task, index) => {
+    return runSingleAgent(cwd, agent.label, task, index, signal);
+  });
+}
+
+// ----- Chain execution -----
+
+async function runChain(
+  cwd: string,
+  tasks: string[],
+  agent: AgentSpec,
+  signal?: AbortSignal
+): Promise<AgentResult[]> {
+  const results: AgentResult[] = [];
+  let previousOutput = "";
+
+  for (let i = 0; i < tasks.length; i++) {
+    const rawTask = tasks[i]!;
+    const task = rawTask.replace(/\{previous\}/g, previousOutput);
+
+    const result = await runSingleAgent(cwd, agent.label, task, i + 1, signal);
+    results.push(result);
+
+    if (isFailed(result)) break;
+
+    previousOutput = getFinalOutput(result.messages);
+  }
+
+  return results;
 }
 
 // ----- Extension -----
@@ -181,14 +336,14 @@ export default function orchestrator(pi: ExtensionAPI): void {
       "Delegate work to specialized subagents. " +
       "Available agents: spec-writer, concept-implementer, sync-implementer, test-writer, reviewer, scout. " +
       "Mode 'single' runs one agent on one task. " +
-      "Mode 'chain' runs sequentials steps, each receiving prior outputs. " +
-      "Mode 'parallel' fans out to up to 3 agents on independent tasks.",
+      "Mode 'chain' runs sequential steps, each receiving prior output via {previous} placeholder. " +
+      "Mode 'parallel' fans out to up to 4 concurrent agents on independent tasks.",
     parameters: Type.Object({
       mode: Type.Union([Type.Literal("single"), Type.Literal("chain"), Type.Literal("parallel")]),
       tasks: Type.Array(Type.String(), { description: "Task descriptions, one per agent or step" }),
       agent: Type.String({ description: "Agent name: spec-writer, concept-implementer, sync-implementer, test-writer, reviewer, scout" }),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const cwd = ctx.cwd ?? process.cwd();
       const config = await loadConfig(cwd);
       const journal = new Journal(cwd, config);
@@ -204,45 +359,61 @@ export default function orchestrator(pi: ExtensionAPI): void {
 
       switch (params.mode) {
         case "chain":
-          results = runChain(cwd, params.tasks, agent, orchestratorDir);
+          results = await runChain(cwd, params.tasks, agent, signal ?? undefined);
           break;
-        case "parallel": {
-          const agents = params.tasks.map((_, i) => i === 0 ? agent : resolveAgent(params.agent));
-          results = runParallel(cwd, params.tasks, agent, agents, orchestratorDir);
+        case "parallel":
+          results = await runParallel(cwd, params.tasks, agent, signal ?? undefined);
           break;
+        default: {
+          const task = params.tasks[0] ?? "No task provided";
+          results = [await runSingleAgent(cwd, params.agent, task, undefined, signal ?? undefined)];
         }
-        default:
-          results = [runSingle(cwd, params.tasks[0] ?? "No task provided", agent, orchestratorDir)];
       }
 
-      for (const result of results) {
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i]!;
+        const agentStepDir = path.join(orchestratorDir, `agent-${i}`);
+        mkdirSync(agentStepDir, { recursive: true });
+
         journal.emit("agent_spawned", {
           agent: result.agent,
           task: result.task.slice(0, 200),
-          childSessionFile: orchestratorDir
+          childSessionFile: agentStepDir
         });
 
         journal.emit("agent_finished", {
           agent: result.agent,
           ok: result.exitCode === 0,
-          usage: "unknown"
+          usage: result.usage
         });
       }
+
+      const detail: OrchestratorDetails = {
+        mode: params.mode,
+        results
+      };
 
       const lines: string[] = [`Orchestration complete (${params.mode}):`, ""];
 
       for (const result of results) {
-        const status = result.exitCode === 0 ? "OK" : `FAIL (${result.exitCode})`;
+        const status = isFailed(result)
+          ? `FAIL${result.stopReason ? ` (${result.stopReason})` : ""}`
+          : "OK";
         lines.push(`[${status}] ${result.agent}: ${result.task.slice(0, 120)}`);
-        if (result.output) {
-          lines.push(result.output.slice(0, 600));
+
+        const output = getFinalOutput(result.messages);
+        if (output) {
+          lines.push(output.slice(0, 600));
         }
         lines.push("");
       }
 
+      const allPassed = results.every((r) => !isFailed(r));
+
       return {
         content: [{ type: "text", text: lines.join("\n") }],
-        details: { results, mode: params.mode }
+        details: detail,
+        isError: !allPassed
       };
     }
   });

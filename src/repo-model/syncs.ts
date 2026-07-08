@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
 import path from "node:path";
 import {
   Project,
@@ -9,6 +8,7 @@ import {
   type SourceFile
 } from "ts-morph";
 import { type CdhConfig } from "../config.ts";
+import { walkLimited, siblingIfExists } from "../utils/fs.ts";
 
 export interface SyncModel {
   file: string;
@@ -168,23 +168,4 @@ function syncFromFile(project: Project, file: string): SyncModel | null {
     hasBranches,
     testPath
   };
-}
-
-async function walkLimited(dir: string, maxDepth: number = 20): Promise<string[]> {
-  if (maxDepth <= 0) return [];
-  const entries = await readdir(dir, { withFileTypes: true });
-  const results: string[] = [];
-  for (const entry of entries) {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...(await walkLimited(entryPath, maxDepth - 1)));
-    } else {
-      results.push(entryPath);
-    }
-  }
-  return results;
-}
-
-function siblingIfExists(file: string): string | undefined {
-  return existsSync(file) ? file : undefined;
 }

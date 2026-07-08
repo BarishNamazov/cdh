@@ -45,7 +45,7 @@ export async function typecheckStage(ctx: StageContext): Promise<StageResult> {
 
 export async function rulesStage(ctx: StageContext, scope: "changed" | "all"): Promise<StageResult> {
   const start = Date.now();
-  const hits = await ctx.ruleEngine.checkRepo("all");
+  const hits = await ctx.ruleEngine.checkRepo(scope);
 
   const blocked = hits.filter((h) => h.severity === "block");
   const warnings = hits.filter((h) => h.severity === "warn");

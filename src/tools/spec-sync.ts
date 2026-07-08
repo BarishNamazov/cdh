@@ -159,10 +159,6 @@ export async function autoSyncSpec(
       .map((a) => `### ${a.name}\n\nRequires: ...\n\nEffects: ...`)
       .join("\n\n");
 
-    if (options.dryRun) {
-      return { updated: true, diff: null };
-    }
-
     specContent =
       specContent.slice(0, actionsSectionStart) +
       `## Actions\n\n${newActions}\n\n` +
@@ -176,10 +172,6 @@ export async function autoSyncSpec(
     const newQueries = concept.queries
       .map((q) => `### ${q.name}\n\nReturns ...`)
       .join("\n\n");
-
-    if (options.dryRun) {
-      return { updated: true, diff: null };
-    }
 
     specContent =
       specContent.slice(0, queriesSectionStart) +

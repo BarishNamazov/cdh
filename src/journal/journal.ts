@@ -22,6 +22,8 @@ export class Journal {
       this.runId = generateRunId();
       this.runDir = path.join(this.cwd, this.config.paths.journal, "runs", this.runId);
       mkdirSync(this.runDir, { recursive: true });
+      env["CDH_RUN_ID"] = this.runId;
+      env["CDH_RUN_DIR"] = this.runDir;
     }
 
     if (this.runDir) {

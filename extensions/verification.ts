@@ -5,18 +5,9 @@ import { loadRepoContract } from "../src/repo-contract.ts";
 import { createRuleEngine } from "../src/rules/rule-engine.ts";
 import { Journal } from "../src/journal/journal.ts";
 import { runVerification } from "../src/verify/runner.ts";
-import type { StageResult } from "../src/verify/types.ts";
+import { formatStageResults } from "../src/verify/format.ts";
 
 const ENV_CAST = process.env as Record<string, string | undefined>;
-
-function stageIcon(status: StageResult["status"]): string {
-  switch (status) {
-    case "pass": return "PASS";
-    case "skip": return "SKIP";
-    case "warn": return "WARN";
-    default: return "FAIL";
-  }
-}
 
 export default function verification(pi: ExtensionAPI): void {
   pi.registerTool({
@@ -65,10 +56,7 @@ export default function verification(pi: ExtensionAPI): void {
         tier: params.tier
       });
 
-      const lines: string[] = [];
-      for (const result of results) {
-        lines.push(`  ${stageIcon(result.status)}  ${result.stage} (${result.durationMs}ms) — ${result.summary}`);
-      }
+      const lines = formatStageResults(results);
 
       const failed = results.filter((r) => r.status === "fail");
       const summary = failed.length > 0

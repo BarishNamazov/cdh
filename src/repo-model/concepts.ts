@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { ClassDeclaration, MethodDeclaration, Project, SyntaxKind } from "ts-morph";
 import { type CdhConfig } from "../config.ts";
 import { type RepoContract } from "../repo-contract.ts";
+import { walk, siblingIfExists } from "../utils/fs.ts";
 
 export interface ConceptMethod {
   name: string;
@@ -66,12 +66,13 @@ function conceptFromClass(
   return { name, file, actions, queries, specPath, testPath };
 }
 
-export function enumerateSurfaceMethods(methods: MethodDeclaration[], helperAllowlist: string[]): ConceptMethod[] {
+export function enumerateSurfaceMethods(methods: MethodDeclaration[], helperAllowlist: string[] | Set<string>): ConceptMethod[] {
+  const allowSet = helperAllowlist instanceof Set ? helperAllowlist : new Set(helperAllowlist);
   const implementationByName = new Map<string, MethodDeclaration>();
 
   for (const method of methods) {
     const name = method.getName();
-    if (helperAllowlist.includes(name)) continue;
+    if (allowSet.has(name)) continue;
     if (name.startsWith("#")) continue;
     if (method.hasModifier(SyntaxKind.StaticKeyword)) continue;
     if (method.hasModifier(SyntaxKind.PrivateKeyword) || method.hasModifier(SyntaxKind.ProtectedKeyword)) continue;
@@ -88,19 +89,4 @@ export function enumerateSurfaceMethods(methods: MethodDeclaration[], helperAllo
       returnType: method.getReturnTypeNode()?.getText() ?? method.getReturnType().getText()
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-async function walk(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const nested = await Promise.all(
-    entries.map((entry) => {
-      const entryPath = path.join(dir, entry.name);
-      return entry.isDirectory() ? walk(entryPath) : [entryPath];
-    })
-  );
-  return nested.flat();
-}
-
-function siblingIfExists(file: string): string | undefined {
-  return existsSync(file) ? file : undefined;
 }

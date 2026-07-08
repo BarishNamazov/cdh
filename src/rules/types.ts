@@ -12,5 +12,5 @@ export interface RuleHit {
 export interface RuleEngine {
   checkContent(path: string, proposed: string): RuleHit[];
   checkFile(path: string): Promise<RuleHit[]>;
-  checkRepo(scope: "all"): Promise<RuleHit[]>;
+  checkRepo(scope: "all" | "changed"): Promise<RuleHit[]>;
 }

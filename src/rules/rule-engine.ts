@@ -1,11 +1,12 @@
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { ClassDeclaration, MethodDeclaration, Project, SyntaxKind } from "ts-morph";
+import { walk } from "../utils/fs.ts";
+import { ClassDeclaration, MethodDeclaration, Node, Project, SyntaxKind } from "ts-morph";
 import { type CdhConfig } from "../config.ts";
 import { type RepoContract } from "../repo-contract.ts";
 import { type RuleEngine, type RuleHit } from "./types.ts";
-import { applySuppressions, scanSuppressions } from "./suppressions.ts";
+import { applySuppressions, parseSuppression, scanSuppressions } from "./suppressions.ts";
 
 export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoContract): RuleEngine {
   const conceptsRoot = path.resolve(cwd, config.paths.concepts);
@@ -17,6 +18,9 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
     if (!existsSync(filePath)) return [];
     const content = await readFile(filePath, "utf8");
     const hits: RuleHit[] = [];
+    if (filePath.endsWith(".sync.test.ts")) {
+      hits.push(...(await checkSyncTest(filePath, content)));
+    }
     if (isInside(conceptsRoot, filePath) && filePath.endsWith("Concept.ts") && !filePath.endsWith(".test.ts")) {
       hits.push(...checkR1(cwd, config, filePath, content));
 
@@ -65,9 +69,6 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
         if (file.endsWith(".ts")) {
           hits.push(...(await checkFile(file)));
         }
-        if (existsSync(file)) {
-          hits.push(...(await checkSyncTest(file, await readFile(file, "utf8"))));
-        }
       }
 
       if (existsSync(conceptsRoot)) {
@@ -75,11 +76,6 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
         hits.push(...(await checkR7(conceptsRoot)));
         hits.push(...(await checkR8(conceptsRoot, config, contract, cwd)));
         hits.push(...(await checkR10(conceptsRoot)));
-      }
-      if (existsSync(syncsRoot)) {
-        for (const file of (await walk(syncsRoot)).filter((f) => f.endsWith(".sync.test.ts"))) {
-          hits.push(...(await checkSyncTest(file, await readFile(file, "utf8"))));
-        }
       }
 
       return hits;
@@ -378,8 +374,30 @@ async function checkR9(filePath: string, content: string, cwd: string): Promise<
   const relativePath = path.relative(cwd, filePath);
   const hits: RuleHit[] = [];
   const hasSetupSyncTest = content.includes("setupSyncTest");
-  const hasPositive = content.includes("positive") || content.includes("test(");
-  const hasNegative = content.includes("does not") || content.includes("negative");
+
+  const project = new Project({ skipAddingFilesFromTsConfig: true });
+  const sf = project.createSourceFile(filePath, content, { overwrite: true });
+  const testCalls = sf.getDescendantsOfKind(SyntaxKind.CallExpression)
+    .filter(c => {
+      const expr = c.getExpression();
+      return Node.isIdentifier(expr) && (expr.getText() === "test" || expr.getText() === "describe" || expr.getText() === "it");
+    });
+  const hasPositive = testCalls.some(c => {
+    const firstArg = c.getArguments()[0];
+    if (Node.isStringLiteral(firstArg)) {
+      const name = firstArg.getLiteralText().toLowerCase();
+      return !name.includes("does not") && !name.includes("negative");
+    }
+    return false;
+  });
+  const hasNegative = testCalls.some(c => {
+    const firstArg = c.getArguments()[0];
+    if (Node.isStringLiteral(firstArg)) {
+      const name = firstArg.getLiteralText().toLowerCase();
+      return name.includes("does not") || name.includes("negative");
+    }
+    return false;
+  });
 
   if (!hasSetupSyncTest) {
     hits.push({
@@ -439,8 +457,14 @@ async function checkR10(conceptsRoot: string): Promise<RuleHit[]> {
 }
 
 function isR10Suppressed(content: string): boolean {
-  const firstFive = content.split("\n").slice(0, 5);
-  return firstFive.some((line) => line.includes("cdh-ignore") && line.includes("R10"));
+  const lines = content.split("\n");
+  const firstFiveNonBlank = lines
+    .slice(0, 5)
+    .filter((l) => l.trim() !== "");
+  return firstFiveNonBlank.some((line) => {
+    const parsed = parseSuppression(line);
+    return parsed !== null && parsed.rule === "R10";
+  });
 }
 
 // ── Shared utilities ──
@@ -461,17 +485,6 @@ function getOwningConceptDir(conceptsRoot: string, filePath: string): string | n
 function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
-async function walk(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const nested = await Promise.all(
-    entries.map((entry) => {
-      const entryPath = path.join(dir, entry.name);
-      return entry.isDirectory() ? walk(entryPath) : [entryPath];
-    })
-  );
-  return nested.flat();
 }
 
 async function getSubdirs(dir: string): Promise<string[]> {

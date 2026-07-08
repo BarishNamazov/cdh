@@ -14,7 +14,7 @@ export interface TouchedResult {
   preExistingDirty: string[];
 }
 
-function runGit(cwd: string, args: string[]): { success: boolean; output: string } {
+export function runGit(cwd: string, args: string[]): { success: boolean; output: string } {
   const proc = Bun.spawnSync(["git", ...args], {
     cwd,
     stdout: "pipe",

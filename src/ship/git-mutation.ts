@@ -1,4 +1,5 @@
 import type { CdhConfig } from "../config.ts";
+import { runGit } from "./index.ts";
 
 export interface GitMutationResult {
   ok: boolean;
@@ -6,18 +7,6 @@ export interface GitMutationResult {
   commitSha?: string;
   prUrl?: string;
   errors: string[];
-}
-
-function runGit(cwd: string, args: string[]): { success: boolean; output: string } {
-  const proc = Bun.spawnSync(["git", ...args], {
-    cwd,
-    stdout: "pipe",
-    stderr: "pipe"
-  });
-  return {
-    success: proc.exitCode === 0,
-    output: new TextDecoder().decode(proc.stdout).trim()
-  };
 }
 
 export function commitShip(
