@@ -1,5 +1,6 @@
 ---
 label: Frontend with shadcn
+description: Frontend component development guidance using shadcn/ui in a CDH project
 trigger: frontend, UI, component, shadcn
 tools: none
 ---
