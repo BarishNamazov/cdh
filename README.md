@@ -1,108 +1,145 @@
 # CDH — Concept Design Harness
 
-CDH is a pi package and CLI that turns any concept-design repo into a gated, multi-agent, catalog-backed, legible development environment.
+CDH turns any directory into a **concept-design repo**: a codebase where features are built as
+independent concepts composed through synchronizations, with automated rule enforcement,
+verification, and multi-agent orchestration — all inside your pi coding agent or from the CLI.
 
 ## Quick Start
 
 ```bash
-# 1. Add the package (requires Bun)
-bun add @mit-sdg/cdh
+# 1. Bootstrap a new concept-design repo
+cdh init
+bun install
 
-# 2. Register it with your pi project — in .pi/settings.json:
-#    { "packages": ["@mit-sdg/cdh"] }
+# 2. Install subagents (optional — for multi-agent orchestration)
+cdh setup
 
-# 3. Start coding — all CDH tools are available inside pi
+# 3. Start pi — CDH loads automatically
 pi
 ```
 
-Once installed, CDH loads its extensions into your pi session: concept tools, sync tracing, verification, gated writes, catalog browser, and subagent orchestration.
+That's it. Inside pi you can immediately say _"build a todo app"_ and the agent will create
+concept specs, implementations, syncs, and tests — all following concept-design rules.
 
-The CLI also works standalone from any concept-design repo:
-
-```bash
-cdh init      # Scaffold a new concept-design repo
-cdh doctor    # Check harness and repo health
-cdh verify    # Run verification (quick or ship tier)
-cdh ship      # Ship changes with preflight, verify, commit, branch, push, PR
-```
-
-## CLI Commands
+If you prefer the CLI instead of pi:
 
 ```bash
-# Run all rules against the current repo
-cdh rules
-
-# Quick verification (typecheck + rules) — runs on every agent end
-cdh verify --tier quick
-
-# Full ship verification (all stages) — runs before /ship
-cdh verify --tier ship
-
-# Ship changes: preflight, verify, commit, branch, push, PR
-cdh ship --confirm --no-review --no-ci
-
-# Init a new concept-design repo
 cdh init
-
-# Check harness and repo health
-cdh doctor
-
-# Trace which syncs involve a specific concept action
-cdh trace Labeling.addLabel
-
-# List all syncs (optionally filter by concept)
-cdh syncs --concept Labeling
-
-# Build and display sync graph
-cdh sync-graph --format report|json|mermaid|dot
-
-# Run sync diagnostics (warnings, missing tests, etc.)
-cdh sync-diagnostics --format report|json
-
-# List all concepts with action/query counts
-cdh concepts
-
-# Show detailed surface for a concept (includes spec)
-cdh concept Labeling
-
-# Check if a concept's spec matches its code surface
-cdh spec-check Labeling
-
-# Auto-update a spec to match code (--dry-run to preview)
-cdh spec-sync Labeling --dry-run
-
-# Read a design convention document
-cdh doc testing-conventions
+bun install
+cdh rules       # check compliance
+cdh verify      # run verification
+cdh ship        # verify + commit + branch + push + PR
 ```
 
-## What It Checks
+## How It Works
 
-| Rule | Description | Severity |
-|------|-------------|----------|
-| R1 | Concept independence — no cross-concept imports | BLOCK |
-| R2 | Action signature — one object param, returns object | WARN |
-| R3 | Query signature — returns array | WARN |
-| R4 | Placement/naming — class matches directory | WARN |
-| R5 | Protected paths — `.env` files blocked from writes | BLOCK |
-| R6 | Spec presence — required sections in specs | FAIL-SHIP |
-| R7 | Test presence — colocated `.test.ts` files | FAIL-SHIP |
-| R8 | Surface coverage — concepts wrapped with `track()` | FAIL-SHIP |
-| R9 | Sync test shape — `setupSyncTest` positive/negative | FAIL-SHIP |
-| R10 | Legible tests — `trace()` or `console.log` narration | FAIL-SHIP |
+CDH is both a **pi package** and a **standalone CLI**. When pi starts in a CDH-initialized
+repo, it auto-loads CDH extensions that add 14+ agent tools:
 
-## Verification Stages (ship tier)
+```
+pi starts → reads .pi/settings.json → loads CDH →
+  agent gets: list_concepts, describe_concept, list_syncs, trace_sync,
+              sync_graph, sync_diagnostics, read_design_doc, run_verification,
+              catalog_search, catalog_copy, cdh_init, orchestrate_run
+```
 
-- `journal-health` — event persistence is working
-- `typecheck` — `tsc --noEmit` passes
-- `rules:all` — all rules pass
-- `tests:all` — `bun test` passes
-- `surface-coverage` — all surface methods are exercised
-- `legibility` — principle/multi-action tests have narration
-- `sync-diagnostics` — sync graph warnings (configurable: warn|fail-ship|off)
+**Single-agent mode** (default): the pi agent uses all CDH tools directly. Say
+_"build a todo app with labeling and comments"_ and it will read the design docs,
+create specs, implement concepts, wire up syncs with `@mit-sdg/sync-engine`, write
+tests, and run verification — all in one session.
+
+**Multi-agent mode** (needs `cdh setup`): use `orchestrate_run` to delegate work to
+specialized subagents. Each runs as an isolated pi process with a focused toolset.
+This is optional — single-agent mode handles everything.
+
+## Subagents
+
+After `cdh setup`, six specialized agents are installed at `~/.pi/agent/agents/`:
+
+| Agent | Role | Tools | Mode |
+|-------|------|-------|------|
+| **spec-writer** | Creates concept specs from user intent | read, write, read_design_doc, catalog | read/write |
+| **concept-implementer** | Implements concept classes from specs | read, write, edit, bash, describe_concept, run_verification | read/write |
+| **sync-implementer** | Wires syncs between concepts | read, write, edit, bash, trace_sync, sync_graph, list_syncs, run_verification | read/write |
+| **test-writer** | Writes tests following CDH conventions | read, write, edit, bash, describe_concept, list_syncs | read/write |
+| **reviewer** | Rule-compliance review (read-only) | read, list_concepts, list_syncs, trace_sync, sync_graph, sync_diagnostics, run_verification | read-only |
+| **scout** | Explores codebase and reports findings | read, list_concepts, describe_concept, list_syncs, trace_sync, sync_graph, catalog | read-only |
+
+**Usage inside pi** — ask the agent to orchestrate:
+
+```
+> Build a notification system. Use orchestrate_run in chain mode:
+  spec-writer → concept-implementer → sync-implementer → test-writer → reviewer.
+```
+
+Or use single-task delegation:
+
+```
+> Send a scout to explore the codebase and report on concept dependencies.
+```
+
+**Modes:**
+
+- `single` — run one agent on one task
+- `chain` — sequential pipeline, each step gets `{previous}` output as context
+- `parallel` — fan out up to 4 agents on independent tasks
+
+Agents are isolated: the reviewer cannot edit files, the sync-implementer traces the
+sync graph before and after edits, and all agents run verification on their own work.
+
+## CLI Reference
+
+```bash
+cdh init                    # Scaffold a concept-design repo with Greeting example
+cdh setup                   # Install subagents into ~/.pi/agent/agents/
+
+cdh rules                   # Run all rules against the current repo
+cdh verify --tier quick     # Quick check (typecheck + rules) — runs on every agent end
+cdh verify --tier ship      # Full verification — runs before cdh ship
+
+cdh ship --confirm          # Preflight → verify → commit → branch → push → PR
+
+cdh concepts                # List all concepts with action/query counts
+cdh concept <Name>          # Show concept surface, actions, queries, spec
+cdh spec-check <Name>       # Check if spec matches code surface
+cdh spec-sync <Name>        # Auto-update a spec to match code (--dry-run to preview)
+
+cdh syncs [--concept <C>]   # List syncs, optionally filtered by concept
+cdh trace <Action>          # Show which syncs involve an action (e.g. Labeling.addLabel)
+cdh sync-graph --format mermaid|dot|json|report   # Visualize the sync graph
+cdh sync-diagnostics                               # Warnings, missing tests, bad patterns
+
+cdh doc <key>               # Read a background doc (e.g. sync-conventions)
+
+cdh catalog search <q>      # Search built-in concept catalog
+cdh catalog show <Name>     # Inspect a catalog concept
+cdh catalog copy <Name>     # Copy a catalog concept into your repo (--as to rename)
+
+cdh doctor                  # Check harness health and repo contract
+```
+
+## Rules
+
+CDH enforces 10 rules. Violations block writes (BLOCK), produce warnings (WARN),
+or prevent shipping (FAIL-SHIP):
+
+| Rule | What | Severity |
+|------|------|----------|
+| R1  | Concepts never import other concepts | BLOCK |
+| R2  | Actions take one object param, return one object | WARN |
+| R3  | Queries return arrays | WARN |
+| R4  | Class name matches directory | WARN |
+| R5  | `.env` files blocked from writes | BLOCK |
+| R6  | Every concept has a spec with required sections | FAIL-SHIP |
+| R7  | Every concept has a colocated `.test.ts` file | FAIL-SHIP |
+| R8  | Concepts are wrapped with `track()` in tests | FAIL-SHIP |
+| R9  | Sync tests use `setupSyncTest`, have positive + negative cases | FAIL-SHIP |
+| R10 | Principle and multi-action tests have `trace()` narration | FAIL-SHIP |
 
 ## Sync Engine DSL
 
-CDH uses [@mit-sdg/sync-engine](https://www.npmjs.com/package/@mit-sdg/sync-engine) for static analysis of sync files:
+Syncs are declarative `when → where? → then` rules composed with
+[@mit-sdg/sync-engine](https://www.npmjs.com/package/@mit-sdg/sync-engine):
 
 ```typescript
 import { act, on, onError, sync, type Vars, when } from "@mit-sdg/sync-engine";
@@ -110,134 +147,103 @@ import { act, on, onError, sync, type Vars, when } from "@mit-sdg/sync-engine";
 export const auditSync = sync(({ id }: Vars) =>
   when(Labeling.addLabel, { item: "" }, { id })
     .where((frames) => frames.query(Audit._getEvents, { targetId: id }, {}))
-    .then(act(Audit.record, { id, event: "CREATED" }))
+    .then(
+      act(Audit.record, { id, event: "CREATED" }).branch(
+        on(act(Audit.record, { id, event: "CONFIRMED" })),
+        onError({ error }, act(Audit.record, { id, event: "FAILED", error })),
+      ),
+    ),
 );
+```
 
+Endpoint syncs:
+
+```typescript
 import { createEndpointDsl, syncMap } from "@mit-sdg/sync-engine/sdk";
 
 const dsl = createEndpointDsl(Requesting);
-
 export const auth = dsl.defineEndpoint("/auth/login", ({ Sync, Request, Respond, Actions }) => ({
   login: Sync(({ token }) => ({
     when: Actions(Request({})),
-    then: Actions(Respond({ token }))
-  }))
+    then: Actions(Respond({ token })),
+  })),
 }));
 ```
 
 ## Ship Safety
 
-`cdh ship` enforces a conservative workflow:
+`cdh ship` runs a strict pipeline before touching git:
 
-1. **Preflight** — git repo check, merge/rebase detection, dirty file exclusion
-2. **Verification** — all ship-tier stages must pass
-3. **Commit** — only touched files, includes `Cdh-Run: <runId>` trailer
-4. **Branch** — `${branchPrefix}${runId}`, suffix on collision
-5. **Push/PR** — optional, controlled by config
-
-Pre-existing dirty/staged files are excluded. Use `--no-review --no-ci` to skip review and CI stages.
-
-## Agent Tools (pi)
-
-| Tool | Description |
-|------|-------------|
-| `list_concepts` | List all concepts with surface details |
-| `describe_concept` | Show detailed surface for a concept |
-| `list_syncs` | List all syncs with when/then/query refs |
-| `trace_sync` | Trace an action through the sync graph |
-| `sync_graph` | Build and display the sync graph |
-| `sync_diagnostics` | Run diagnostics on syncs |
-| `read_design_doc` | Read design convention documents |
-| `spec_lint` | Check spec alignment with code |
-| `run_verification` | Run verification stages (quick\|ship) |
-| `record_decision` | Record architectural decisions |
-| `catalog_search` | Search the concept catalog |
-| `catalog_show` | Inspect a catalog concept |
-| `catalog_copy` | Copy a catalog concept into the repo |
-| `orchestrate_run` | Orchestrate subagents (single/chain/parallel) |
-
-## Orchestration
-
-`orchestrate_run` delegates work to specialized subagents. Each agent runs as an isolated pi process with its own session and focused toolset.
-
-**Available agents:**
-- **spec-writer** — writes concept specs in CDH format
-- **concept-implementer** — implements concept classes from specs
-- **sync-implementer** — implements syncs using the DSL, traces before/after
-- **test-writer** — writes tests following CDH conventions
-- **reviewer** — reviews for rule compliance (read-only)
-- **scout** — explores and reports (read-only)
-
-**Modes:**
-- `single` — one agent, one task
-- `chain` — sequential steps, each receiving prior outputs as context
-- `parallel` — up to 3 concurrent agents on independent tasks
-
-Agents are isolated: reviewer is read-only, sync-implementer traces sync graph before and after edits, and all agents run verification on their work.
-
-## Skills and Prompts
-
-Skills guide agents through common workflows:
-- **concept-workflow** — implementing concepts from spec
-- **sync-workflow** — implementing syncs with graph analysis
-- **debugging-syncs** — diagnosing sync issues
-- **frontend-shadcn** — building frontend components
-
-Prompt templates for common tasks:
-- `/new-concept` — create a concept from scratch or catalog
-- `/new-sync` — create a synchronization
-- `/implement-feature` — full-cycle feature implementation
-- `/review` — code review with rule compliance check
-- `/ship` — ship changes with verification
-- `/status` — current run status
-- `/report` — comprehensive run report
+1. **Preflight** — repo check, merge/rebase detection, exclude pre-existing dirty files
+2. **Verify** — all ship-tier stages must pass (journal-health, typecheck, rules, tests, surface-coverage, legibility, sync-diagnostics)
+3. **Commit** — stages only changed files, includes `Cdh-Run: <runId>` trailer
+4. **Branch** — `cdh/<runId>`, suffix on collision
+5. **Push/PR** — controlled by config (`.pi/cdh.json` `ship.push`, `ship.createPr`)
 
 ## Catalog
 
-Preview and copy pre-built, T7-quality concepts into your repo:
+Copy pre-built concepts into your repo:
 
 ```bash
-# Search for concepts
-cdh catalog search identity
-
-# Inspect a concept
-cdh catalog show authenticating
-
-# Copy a concept into your repo
-cdh catalog copy authenticating
-
-# Copy and rename
-cdh catalog copy authenticating --as Auth
+cdh catalog search identity     # find concepts
+cdh catalog show authenticating # inspect one
+cdh catalog copy authenticating # install it (--as Auth to rename)
 ```
 
-Available concepts:
-- **Authenticating** — username/password identity with `Bun.password` hashing
+Built-in: **Authenticating** — username/password identity with `Bun.password` hashing.
 
 ## Project Structure
 
-A conforming repo looks like:
-
 ```
-app/
-├── .pi/settings.json        # "packages": ["@mit-sdg/cdh"]
-├── .pi/cdh.json             # CDH config
+my-app/
+├── .pi/settings.json            # { "packages": ["@mit-sdg/cdh"] }
+├── .pi/cdh.json                 # CDH config (rules, verify, ship, etc.)
+├── .gitignore
+├── package.json
+├── tsconfig.json
 ├── design/
-│   ├── index.json           # Machine-readable repo contract
-│   ├── concepts/*.md        # Concept specs
-│   ├── background/          # Convention docs
-│   └── journal/             # Run history (auto-generated)
+│   ├── index.json               # Repo contract (doc refs, helpers, scripts)
+│   ├── concepts/                # Concept specs (*.md)
+│   │   └── greeting.md
+│   ├── background/              # Convention docs (agents read these)
+│   │   ├── concept-design-overview.md
+│   │   ├── concept-specifications.md
+│   │   ├── implementing-concepts.md
+│   │   ├── implementing-synchronizations.md
+│   │   └── testing-concepts.md
+│   └── journal/                 # Run history (auto-generated)
 └── src/
-    ├── concepts/<Name>/     # Concept implementation + tests
-    ├── syncs/               # Sync definitions + tests
-    ├── engine/              # Server bootstrap
-    └── utils/               # Test helpers
+    ├── concepts/<Name>/         # Concept class + tests
+    │   ├── GreetingConcept.ts
+    │   └── GreetingConcept.test.ts
+    ├── syncs/                   # Sync definitions + tests
+    │   ├── greeting-audit.sync.ts
+    │   └── greeting-audit.sync.test.ts
+    ├── engine/                  # Server bootstrap
+    │   └── server.ts
+    └── utils/
+        └── testing.ts           # CDH test harness
 ```
+
+## Verification Stages
+
+| Stage | Tier |
+|-------|------|
+| `journal-health` — event persistence working | ship |
+| `typecheck` — `tsc --noEmit` passes | quick, ship |
+| `rules:all` — all 10 rules pass | ship |
+| `tests:all` — `bun test` passes | ship |
+| `surface-coverage` — all surface methods exercised | ship |
+| `legibility` — principle tests have narration | ship |
+| `sync-diagnostics` — sync graph health | ship |
+
+Quick tier (`onAgentEnd`): typecheck + rules for changed files.
+Ship tier (`onShipLocal`): all stages above.
 
 ## Development
 
 ```bash
 bun install
-bun test          # Run all tests
+bun test          # 155 tests
 bun run check     # TypeScript typecheck
-bun run build     # Build declarations for npm
 ```
