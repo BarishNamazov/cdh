@@ -60,6 +60,8 @@
       "./extensions/catalog.ts",
       "./extensions/orchestrator.ts",
       "./extensions/init.ts"
-    ]
+    ],
+    "skills": ["./skills/*.md"],
+    "prompts": ["./prompts/*.md"]
   }
 }
