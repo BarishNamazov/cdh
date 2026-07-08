@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { initProject, type InitResult } from "../src/init.ts";
+import { type InitResult, initProject } from "../src/init.ts";
 
 export default function initExtension(pi: ExtensionAPI): void {
   pi.registerTool({
@@ -15,11 +15,7 @@ export default function initExtension(pi: ExtensionAPI): void {
       const cwd = ctx.cwd ?? process.cwd();
       const result: InitResult = initProject(cwd);
 
-      const lines: string[] = [
-        `CDH project initialized in ${cwd}`,
-        "",
-        "Created:",
-      ];
+      const lines: string[] = [`CDH project initialized in ${cwd}`, "", "Created:"];
 
       for (const file of result.created) {
         lines.push(`  + ${file}`);

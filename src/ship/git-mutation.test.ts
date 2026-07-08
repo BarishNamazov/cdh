@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import path from "node:path";
 import { tmpdir } from "node:os";
-import { runGit } from "./index.ts";
+import path from "node:path";
 import { commitShip, createPullRequest, createShipBranch, pushBranch } from "./git-mutation.ts";
+import { runGit } from "./index.ts";
 
 function initGitRepo(dir: string): void {
   mkdirSync(dir, { recursive: true });

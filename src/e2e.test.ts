@@ -3,8 +3,8 @@ import path from "node:path";
 import { loadConfig } from "./config.ts";
 import { loadRepoContract } from "./repo-contract.ts";
 import { createRuleEngine } from "./rules/rule-engine.ts";
-import { listConcepts } from "./tools/list-concepts.ts";
 import { describeConcept } from "./tools/describe-concept.ts";
+import { listConcepts } from "./tools/list-concepts.ts";
 import { runSyncDiagnostics } from "./tools/sync-diagnostics.ts";
 
 const validAppDir = path.resolve(import.meta.dir, "..", "fixtures", "valid-app");

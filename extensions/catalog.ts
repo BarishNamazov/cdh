@@ -142,14 +142,10 @@ export default function catalog(pi: ExtensionAPI): void {
       const { contract } = await loadRepoContract(cwd, config);
 
       try {
-        const result = copyCatalogConcept(
-          path.resolve(__dirname, "..", "catalog"),
-          cwd,
-          entry,
-          config,
-          contract,
-          { as: params.as, overwrite: params.overwrite }
-        );
+        const result = copyCatalogConcept(path.resolve(__dirname, "..", "catalog"), cwd, entry, config, contract, {
+          as: params.as,
+          overwrite: params.overwrite,
+        });
 
         return {
           content: [

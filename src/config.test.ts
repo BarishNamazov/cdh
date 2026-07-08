@@ -9,7 +9,10 @@ describe("loadConfig", () => {
     const dir = await mkdtemp(path.join(tmpdir(), "cdh-config-"));
     const globalPath = path.join(dir, "global.json");
     const projectPath = path.join(dir, ".pi", "cdh.json");
-    await writeFile(globalPath, JSON.stringify({ verify: { syncDiagnostics: "off" }, ship: { branchPrefix: "test/" } }));
+    await writeFile(
+      globalPath,
+      JSON.stringify({ verify: { syncDiagnostics: "off" }, ship: { branchPrefix: "test/" } })
+    );
     await mkdir(path.dirname(projectPath), { recursive: true });
     await Bun.write(projectPath, JSON.stringify({ paths: { concepts: "custom/concepts" } }));
 

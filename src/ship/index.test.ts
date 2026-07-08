@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import path from "node:path";
 import { tmpdir } from "node:os";
+import path from "node:path";
 import { captureSnapshot, computeTouched, runGit, runShipPreflight } from "./index.ts";
 
 function initGitRepo(dir: string): void {

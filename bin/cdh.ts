@@ -2,8 +2,10 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { copyCatalogConcept } from "../src/catalog-lib.ts";
 import type { CdhConfig } from "../src/config.ts";
 import { loadConfig } from "../src/config.ts";
+import { initProject } from "../src/init.ts";
 import { Journal } from "../src/journal/journal.ts";
 import { loadRepoContract } from "../src/repo-contract.ts";
 import { discoverConcepts } from "../src/repo-model/concepts.ts";
@@ -27,8 +29,6 @@ import {
 import { formatTraceResult, traceSyncAction } from "../src/tools/trace-sync.ts";
 import { formatStageResults } from "../src/verify/format.ts";
 import { runVerification } from "../src/verify/runner.ts";
-import { copyCatalogConcept } from "../src/catalog-lib.ts";
-import { initProject } from "../src/init.ts";
 
 const [, , command, ...args] = Bun.argv;
 const cwd = process.cwd();
@@ -69,13 +69,17 @@ function showCommandHelp(cmd: string | undefined): void {
 
   switch (cmd) {
     case "init":
-      console.log("Usage: cdh init\n\nScaffold a new concept-design repo with directory structure,\nconfig file, and repo contract.");
+      console.log(
+        "Usage: cdh init\n\nScaffold a new concept-design repo with directory structure,\nconfig file, and repo contract."
+      );
       break;
     case "setup":
       console.log("Usage: cdh setup\n\nInstall CDH agent specs to ~/.pi/agent/agents/ for pi agent discovery.");
       break;
     case "doctor":
-      console.log("Usage: cdh doctor\n\nCheck harness and repo health. Reports missing directories,\nspec files, test files, and contract validity.");
+      console.log(
+        "Usage: cdh doctor\n\nCheck harness and repo health. Reports missing directories,\nspec files, test files, and contract validity."
+      );
       break;
     case "rules":
       console.log("Usage: cdh rules\n\nRun all rules (R1-R10) and report violations with severity.");
@@ -105,7 +109,9 @@ function showCommandHelp(cmd: string | undefined): void {
       );
       break;
     case "trace":
-      console.log("Usage: cdh trace <Concept.action>\n\nShow all syncs involving a concept action.\nExample: cdh trace Labeling.addLabel");
+      console.log(
+        "Usage: cdh trace <Concept.action>\n\nShow all syncs involving a concept action.\nExample: cdh trace Labeling.addLabel"
+      );
       break;
     case "syncs":
       console.log("Usage: cdh syncs [--concept <name>]\n\nList all synchronizations, optionally filtered by concept.");
@@ -140,10 +146,14 @@ function showCommandHelp(cmd: string | undefined): void {
       console.log("Usage: cdh concepts\n\nList all concepts with action and query counts.");
       break;
     case "concept":
-      console.log("Usage: cdh concept <name>\n\nShow detailed surface for a concept including its spec.\nExample: cdh concept Labeling");
+      console.log(
+        "Usage: cdh concept <name>\n\nShow detailed surface for a concept including its spec.\nExample: cdh concept Labeling"
+      );
       break;
     case "spec-check":
-      console.log("Usage: cdh spec-check <concept-name>\n\nCheck if a concept's spec file matches its code surface.\nExits 1 if differences are found.");
+      console.log(
+        "Usage: cdh spec-check <concept-name>\n\nCheck if a concept's spec file matches its code surface.\nExits 1 if differences are found."
+      );
       break;
     case "spec-sync":
       console.log(
@@ -155,7 +165,9 @@ function showCommandHelp(cmd: string | undefined): void {
       );
       break;
     case "doc":
-      console.log("Usage: cdh doc <key>\n\nRead a design document by its key from design/index.json docs.\nExample: cdh doc testing-conventions");
+      console.log(
+        "Usage: cdh doc <key>\n\nRead a design document by its key from design/index.json docs.\nExample: cdh doc testing-conventions"
+      );
       break;
     case "catalog":
       console.log(
@@ -246,7 +258,8 @@ async function main(): Promise<void> {
           process.stdout.write(`\r  [${i + 1}/${total}] ${stage}...`);
         },
         onStageDone: (result) => {
-          const icon = result.status === "pass" ? "+" : result.status === "warn" ? "~" : result.status === "skip" ? "-" : "x";
+          const icon =
+            result.status === "pass" ? "+" : result.status === "warn" ? "~" : result.status === "skip" ? "-" : "x";
           process.stdout.write(`\r  ${icon} ${result.stage} (${result.durationMs}ms)\n`);
         },
       });
@@ -321,7 +334,9 @@ async function main(): Promise<void> {
       if (!result) {
         const concepts = await discoverConcepts(cwd, config, contract);
         const names = concepts.map((c) => c.name).sort();
-        console.error(`Concept '${name}' not found. Available concepts: ${names.length > 0 ? names.join(", ") : "(none)"}`);
+        console.error(
+          `Concept '${name}' not found. Available concepts: ${names.length > 0 ? names.join(", ") : "(none)"}`
+        );
         process.exit(1);
       }
 
@@ -342,7 +357,9 @@ async function main(): Promise<void> {
       if (!diff) {
         const concepts = await discoverConcepts(cwd, config, contract);
         const names = concepts.map((c) => c.name).sort();
-        console.error(`Concept '${name}' not found or has no spec file. Available concepts: ${names.length > 0 ? names.join(", ") : "(none)"}`);
+        console.error(
+          `Concept '${name}' not found or has no spec file. Available concepts: ${names.length > 0 ? names.join(", ") : "(none)"}`
+        );
         process.exit(1);
       }
 
@@ -405,11 +422,18 @@ async function main(): Promise<void> {
       }
 
       const registry = JSON.parse(await (await import("node:fs/promises")).readFile(registryPath, "utf8")) as {
-        concepts: Array<{ id: string; name: string; version: string; summary: string; tags: string[]; pairsWith?: string[]; files: string[] }>;
+        concepts: Array<{
+          id: string;
+          name: string;
+          version: string;
+          summary: string;
+          tags: string[];
+          pairsWith?: string[];
+          files: string[];
+        }>;
       };
 
-      const findByName = (name: string) =>
-        registry.concepts.find((c) => c.name.toLowerCase() === name.toLowerCase());
+      const findByName = (name: string) => registry.concepts.find((c) => c.name.toLowerCase() === name.toLowerCase());
 
       if (!subcommand || subcommand === "--help" || subcommand === "-h") {
         console.log(
@@ -703,7 +727,8 @@ async function main(): Promise<void> {
           process.stdout.write(`\r  [${i + 1}/${total}] ${stage}...`);
         },
         onStageDone: (result) => {
-          const icon = result.status === "pass" ? "+" : result.status === "warn" ? "~" : result.status === "skip" ? "-" : "x";
+          const icon =
+            result.status === "pass" ? "+" : result.status === "warn" ? "~" : result.status === "skip" ? "-" : "x";
           process.stdout.write(`\r  ${icon} ${result.stage} (${result.durationMs}ms)\n`);
         },
       });

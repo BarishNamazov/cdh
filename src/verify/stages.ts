@@ -4,11 +4,14 @@ import path from "node:path";
 import { runSyncDiagnostics } from "../tools/sync-diagnostics.ts";
 import type { StageContext, StageResult } from "./types.ts";
 
-async function runCommand(command: string, options: {
-  cwd: string;
-  timeout?: number;
-  env?: Record<string, string | undefined>;
-}): Promise<{ stdout: string; stderr: string }> {
+async function runCommand(
+  command: string,
+  options: {
+    cwd: string;
+    timeout?: number;
+    env?: Record<string, string | undefined>;
+  }
+): Promise<{ stdout: string; stderr: string }> {
   const proc = Bun.spawn(["sh", "-c", command], {
     cwd: options.cwd,
     env: { ...Bun.env, ...options.env },
@@ -18,7 +21,9 @@ async function runCommand(command: string, options: {
   });
 
   const timer = options.timeout
-    ? setTimeout(() => { proc.kill(); }, options.timeout)
+    ? setTimeout(() => {
+        proc.kill();
+      }, options.timeout)
     : undefined;
 
   const [stdout, stderr, exitCode] = await Promise.all([

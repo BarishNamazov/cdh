@@ -5,7 +5,13 @@ import { type ClassDeclaration, type MethodDeclaration, Node, Project, SyntaxKin
 import type { CdhConfig } from "../config.ts";
 import type { RepoContract } from "../repo-contract.ts";
 import { walk } from "../utils/fs.ts";
-import { type Suppression, applySuppressions, checkUnusedSuppressions, parseSuppression, scanSuppressions } from "./suppressions.ts";
+import {
+  applySuppressions,
+  checkUnusedSuppressions,
+  parseSuppression,
+  type Suppression,
+  scanSuppressions,
+} from "./suppressions.ts";
 import type { RuleEngine, RuleHit } from "./types.ts";
 
 export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoContract): RuleEngine {

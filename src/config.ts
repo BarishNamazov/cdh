@@ -38,13 +38,17 @@ export const CdhConfigSchema = Type.Object({
     createPr: Type.Boolean(),
     ci: Type.Boolean(),
   }),
-  ci: Type.Optional(Type.Object({
-    provider: Type.String(),
-    workflow: Type.String(),
-  })),
-  frontend: Type.Optional(Type.Object({
-    enabled: Type.Boolean(),
-  })),
+  ci: Type.Optional(
+    Type.Object({
+      provider: Type.String(),
+      workflow: Type.String(),
+    })
+  ),
+  frontend: Type.Optional(
+    Type.Object({
+      enabled: Type.Boolean(),
+    })
+  ),
 });
 
 export type CdhConfig = Static<typeof CdhConfigSchema>;

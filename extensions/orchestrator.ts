@@ -1,63 +1,130 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Message } from "@earendil-works/pi-ai";
+import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME, getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { loadConfig } from "../src/config.ts";
 import { Journal } from "../src/journal/journal.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// ----- Agent filesystem discovery -----
+// ----- Agent types -----
 
-const PI_AGENT_DIR = path.join(homedir(), ".pi", "agent", "agents");
+export type AgentScope = "user" | "project" | "both";
 
-function parseAgentFrontmatter(content: string): { name: string; description: string; tools: string[] } | null {
-  const headerEnd = content.indexOf("---\n", 4);
-  if (!headerEnd) return null;
-
-  const header = content.slice(4, headerEnd);
-  const name = header.match(/^name:\s*(.+)/m)?.[1]?.trim();
-  const description = header.match(/^description:\s*(.+)/m)?.[1]?.trim();
-  const toolsRaw = header.match(/^tools:\s*(.+)/m)?.[1]?.trim();
-
-  if (!name || !description) return null;
-  return { name, description, tools: toolsRaw ? toolsRaw.split(/,\s*/).filter(Boolean) : [] };
+interface AgentConfig {
+  name: string;
+  description: string;
+  tools: string[];
+  model?: string;
+  systemPrompt: string;
+  source: "user" | "project";
+  filePath: string;
 }
 
-function discoverAgents(): Map<string, AgentSpec> {
-  const discovered = new Map<string, AgentSpec>();
+interface AgentDiscoveryResult {
+  agents: AgentConfig[];
+  projectAgentsDir: string | null;
+}
 
-  if (!existsSync(PI_AGENT_DIR)) return discovered;
+// ----- Agent discovery -----
+
+const PI_AGENT_DIR = path.join(getAgentDir(), "agents");
+
+function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
+  const agents: AgentConfig[] = [];
+
+  if (!existsSync(dir)) return agents;
 
   let entries: string[];
   try {
-    entries = readdirSync(PI_AGENT_DIR);
+    entries = readdirSync(dir);
   } catch {
-    return discovered;
+    return agents;
   }
 
   for (const entry of entries) {
-    if (!entry.startsWith("cdh-") || !entry.endsWith(".md")) continue;
+    if (!entry.endsWith(".md")) continue;
 
-    const content = readFileSync(path.join(PI_AGENT_DIR, entry), "utf8");
-    const meta = parseAgentFrontmatter(content);
-    if (!meta) continue;
+    const filePath = path.join(dir, entry);
+    let content: string;
+    try {
+      content = readFileSync(filePath, "utf-8");
+    } catch {
+      continue;
+    }
 
-    const agentName = meta.name;
+    const { frontmatter, body } = parseFrontmatter<Record<string, string>>(content);
 
-    discovered.set(agentName, {
-      label: agentName.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-      tools: meta.tools,
-      system: content.slice(content.indexOf("---\n", 4) + 4).trim(),
+    if (!frontmatter.name || !frontmatter.description) continue;
+
+    const tools =
+      frontmatter.tools
+        ?.split(",")
+        .map((t: string) => t.trim())
+        .filter(Boolean) ?? [];
+
+    agents.push({
+      name: frontmatter.name,
+      description: frontmatter.description,
+      tools,
+      model: frontmatter.model,
+      systemPrompt: body,
+      source,
+      filePath,
     });
   }
 
-  return discovered;
+  return agents;
 }
+
+function isDirectory(p: string): boolean {
+  try {
+    return require("node:fs").statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function findNearestProjectAgentsDir(cwd: string): string | null {
+  let currentDir = cwd;
+  while (true) {
+    const candidate = path.join(currentDir, CONFIG_DIR_NAME, "agents");
+    if (isDirectory(candidate)) return candidate;
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) return null;
+    currentDir = parentDir;
+  }
+}
+
+function discoverAgents(cwd: string, scope: AgentScope): AgentDiscoveryResult {
+  const projectAgentsDir = findNearestProjectAgentsDir(cwd);
+
+  const userAgents = scope === "project" ? [] : loadAgentsFromDir(PI_AGENT_DIR, "user");
+  const projectAgents = scope === "user" || !projectAgentsDir ? [] : loadAgentsFromDir(projectAgentsDir, "project");
+
+  const agentMap = new Map<string, AgentConfig>();
+
+  if (scope === "both") {
+    for (const agent of userAgents) agentMap.set(agent.name, agent);
+    for (const agent of projectAgents) agentMap.set(agent.name, agent);
+  } else if (scope === "user") {
+    for (const agent of userAgents) agentMap.set(agent.name, agent);
+  } else {
+    for (const agent of projectAgents) agentMap.set(agent.name, agent);
+  }
+
+  return { agents: Array.from(agentMap.values()), projectAgentsDir };
+}
+
+// ----- Agent installation (cdh setup) -----
 
 export function installAgents(): { installed: string[]; skipped: string[]; errors: string[] } {
   const installed: string[] = [];
@@ -85,9 +152,9 @@ export function installAgents(): { installed: string[]; skipped: string[]; error
 
     const sourcePath = path.join(sourceDir, file);
     const content = readFileSync(sourcePath, "utf8");
-    const meta = parseAgentFrontmatter(content);
+    const { frontmatter } = parseFrontmatter<Record<string, string>>(content);
 
-    if (!meta) {
+    if (!frontmatter.name) {
       errors.push(`Invalid agent frontmatter in ${file}`);
       continue;
     }
@@ -97,16 +164,16 @@ export function installAgents(): { installed: string[]; skipped: string[]; error
 
     if (exists) {
       const existing = readFileSync(destPath, "utf8");
-      const existingMeta = parseAgentFrontmatter(existing);
-      if (existingMeta && existingMeta.name === meta.name) {
-        skipped.push(meta.name);
+      const { frontmatter: existingFrontmatter } = parseFrontmatter<Record<string, string>>(existing);
+      if (existingFrontmatter.name === frontmatter.name) {
+        skipped.push(frontmatter.name);
         continue;
       }
     }
 
     try {
       writeFileSync(destPath, content, { encoding: "utf8", mode: 0o644 });
-      installed.push(meta.name);
+      installed.push(frontmatter.name);
     } catch {
       errors.push(`Failed to write ${destPath}`);
     }
@@ -114,105 +181,6 @@ export function installAgents(): { installed: string[]; skipped: string[]; error
 
   return { installed, skipped, errors };
 }
-
-// ----- Agent registry -----
-
-interface AgentSpec {
-  label: string;
-  tools: string[];
-  system: string;
-}
-
-const AGENTS: Record<string, AgentSpec> = {
-  "spec-writer": {
-    label: "Spec Writer",
-    tools: ["read", "write", "read_design_doc", "catalog_search", "catalog_show", "record_decision"],
-    system:
-      "Write concept specification documents following CDH conventions. " +
-      "Output a markdown spec at design/concepts/<lowercase-name>.md with sections: " +
-      "Purpose, Principle, State, Actions, Queries, Requires, Effects, Errors.",
-  },
-  "concept-implementer": {
-    label: "Concept Implementer",
-    tools: [
-      "read",
-      "write",
-      "edit",
-      "bash",
-      "describe_concept",
-      "list_concepts",
-      "read_design_doc",
-      "run_verification",
-      "record_decision",
-    ],
-    system:
-      "Implement concept classes from specifications. Create src/concepts/<Name>/<Name>Concept.ts. " +
-      "Default export a class. Actions accept single-object params, return objects. " +
-      "Queries start with _. No cross-concept imports. Write colocated tests.",
-  },
-  "sync-implementer": {
-    label: "Sync Implementer",
-    tools: [
-      "read",
-      "write",
-      "edit",
-      "bash",
-      "trace_sync",
-      "sync_graph",
-      "list_syncs",
-      "sync_diagnostics",
-      "read_design_doc",
-      "run_verification",
-      "record_decision",
-    ],
-    system:
-      "Implement synchronizations between concepts using the @mit-sdg/sync-engine DSL. " +
-      "Trace before and after. Use when(), act(), where(), branch(on(...), onError(...)). " +
-      "Export const declarations. Write sibling test files with positive and negative cases.",
-  },
-  "test-writer": {
-    label: "Test Writer",
-    tools: ["read", "write", "edit", "bash", "describe_concept", "list_syncs", "read_design_doc"],
-    system:
-      "Write tests for concepts and syncs. For concepts: use setupTestDb, trace, testAction, expectError. " +
-      "For syncs: use setupSyncTest with positive and negative cases. Tests must have trace() narration.",
-  },
-  reviewer: {
-    label: "Reviewer",
-    tools: [
-      "read",
-      "list_concepts",
-      "list_syncs",
-      "trace_sync",
-      "sync_graph",
-      "sync_diagnostics",
-      "read_design_doc",
-      "run_verification",
-    ],
-    system:
-      "Review changes for CDH rule compliance. Do NOT edit, write, or execute commands. " +
-      "Check: R1 (no cross-imports), R2 (tests colocated), R6 (specs exist), " +
-      "R9 (sync test shape), R10 (trace narration). Output verdict: APPROVED / NEEDS WORK / REJECTED.",
-  },
-  scout: {
-    label: "Scout",
-    tools: [
-      "read",
-      "list_concepts",
-      "describe_concept",
-      "list_syncs",
-      "trace_sync",
-      "sync_graph",
-      "sync_diagnostics",
-      "read_design_doc",
-      "catalog_search",
-      "catalog_show",
-    ],
-    system:
-      "Explore the codebase and report findings. Read-only — do NOT edit, write, delete, or execute commands. " +
-      "Report concept surfaces, sync relationships, gaps, and architectural patterns.",
-  },
-};
 
 // ----- Types -----
 
@@ -228,9 +196,10 @@ interface UsageStats {
 
 interface AgentResult {
   agent: string;
+  agentSource: "user" | "project" | "unknown";
   task: string;
   exitCode: number;
-  messages: Record<string, unknown>[];
+  messages: Message[];
   stderr: string;
   usage: UsageStats;
   model?: string;
@@ -241,6 +210,8 @@ interface AgentResult {
 
 interface OrchestratorDetails {
   mode: "single" | "parallel" | "chain";
+  agentScope: AgentScope;
+  projectAgentsDir: string | null;
   results: AgentResult[];
 }
 
@@ -248,31 +219,15 @@ interface OrchestratorDetails {
 
 const CONCURRENCY_LIMIT = 4;
 
-function resolveAgent(name: string): AgentSpec {
-  const discovered = discoverAgents();
-  if (discovered.has(name)) {
-    return discovered.get(name)!;
-  }
-
-  return (
-    AGENTS[name] ?? {
-      label: name,
-      tools: ["read", "write", "edit", "bash"],
-      system: `You are the ${name} agent. Complete the task and report your result.`,
-    }
-  );
-}
-
 function zeroUsage(): UsageStats {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 };
 }
 
-function getFinalOutput(messages: Record<string, unknown>[]): string {
+function getFinalOutput(messages: Message[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
-    if (!msg) continue;
-    if ((msg as { role?: string }).role === "assistant") {
-      for (const part of (msg as { content?: { type: string; text: string }[] }).content ?? []) {
+    if (msg.role === "assistant") {
+      for (const part of msg.content ?? []) {
         if (part.type === "text") return part.text;
       }
     }
@@ -296,33 +251,33 @@ async function writeTempFile(agentName: string, content: string): Promise<{ file
 
 async function runSingleAgent(
   defaultCwd: string,
-  agentName: string,
+  agent: AgentConfig,
   task: string,
   step?: number,
   signal?: AbortSignal,
   onUpdate?: (update: string) => void
 ): Promise<AgentResult> {
-  const agent = resolveAgent(agentName);
-
   const args: string[] = ["--print", "--mode", "json", "--no-session"];
+  if (agent.model) args.push("--model", agent.model);
   if (agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
-  const systemPrompt = `You are the ${agent.label} agent. ${agent.system}`;
-  const { filePath: promptPath, tmpDir: promptDir } = await writeTempFile(agentName, systemPrompt);
+  const { filePath: promptPath, tmpDir: promptDir } = await writeTempFile(agent.name, agent.systemPrompt);
   args.push("--append-system-prompt", promptPath);
 
   args.push(`Task: ${task}`);
 
-  onUpdate?.(`[${agentName}] Starting: ${task.slice(0, 80)}...`);
+  onUpdate?.(`[${agent.name}] Starting: ${task.slice(0, 80)}...`);
 
   const result: AgentResult = {
-    agent: agentName,
+    agent: agent.name,
+    agentSource: agent.source,
     task,
     exitCode: 0,
     messages: [],
     stderr: "",
     usage: zeroUsage(),
     step,
+    model: agent.model,
   };
 
   let wasAborted = false;
@@ -345,23 +300,12 @@ async function runSingleAgent(
       }
 
       if (event.type === "message_end" && event.message) {
-        const msg = event.message as Record<string, unknown>;
+        const msg = event.message as Message;
         result.messages.push(msg);
 
-        if ((msg as { role?: string }).role === "assistant") {
+        if (msg.role === "assistant") {
           result.usage.turns++;
-          const usage = (
-            msg as {
-              usage?: {
-                input?: number;
-                output?: number;
-                cacheRead?: number;
-                cacheWrite?: number;
-                cost?: { total?: number };
-                totalTokens?: number;
-              };
-            }
-          ).usage;
+          const usage = msg.usage;
           if (usage) {
             result.usage.input += usage.input || 0;
             result.usage.output += usage.output || 0;
@@ -370,11 +314,11 @@ async function runSingleAgent(
             result.usage.cost += usage.cost?.total || 0;
             result.usage.contextTokens = usage.totalTokens || 0;
           }
-          if (!result.model && (msg as { model?: string }).model) {
-            result.model = (msg as { model?: string }).model;
+          if (!result.model && msg.model) {
+            result.model = msg.model;
           }
-          if ((msg as { stopReason?: string }).stopReason) {
-            result.stopReason = (msg as { stopReason?: string }).stopReason;
+          if (msg.stopReason) {
+            result.stopReason = msg.stopReason;
           }
           if ((msg as { errorMessage?: string }).errorMessage) {
             result.errorMessage = (msg as { errorMessage?: string }).errorMessage;
@@ -383,7 +327,7 @@ async function runSingleAgent(
       }
 
       if (event.type === "tool_result_end" && event.message) {
-        result.messages.push(event.message as Record<string, unknown>);
+        result.messages.push(event.message as Message);
       }
     };
 
@@ -434,7 +378,7 @@ async function runSingleAgent(
   }
 
   const status = isFailed(result) ? "FAILED" : "COMPLETE";
-  onUpdate?.(`[${agentName}] ${status} (${result.usage.output} output tokens)`);
+  onUpdate?.(`[${agent.name}] ${status} (${result.usage.output} output tokens)`);
 
   return result;
 }
@@ -470,12 +414,12 @@ async function mapWithConcurrencyLimit<TIn, TOut>(
 async function runParallel(
   cwd: string,
   tasks: string[],
-  agent: AgentSpec,
+  agent: AgentConfig,
   signal?: AbortSignal,
   onUpdate?: (update: string) => void
 ): Promise<AgentResult[]> {
   return mapWithConcurrencyLimit(tasks, CONCURRENCY_LIMIT, async (task, index) => {
-    return runSingleAgent(cwd, agent.label, task, index, signal, onUpdate);
+    return runSingleAgent(cwd, agent, task, index, signal, onUpdate);
   });
 }
 
@@ -484,7 +428,7 @@ async function runParallel(
 async function runChain(
   cwd: string,
   tasks: string[],
-  agent: AgentSpec,
+  agent: AgentConfig,
   signal?: AbortSignal,
   onUpdate?: (update: string) => void
 ): Promise<AgentResult[]> {
@@ -496,9 +440,9 @@ async function runChain(
     if (!rawTask) continue;
     const task = rawTask.replace(/\{previous\}/g, previousOutput);
 
-    onUpdate?.(`[chain ${i + 1}/${tasks.length}] ${agent.label}`);
+    onUpdate?.(`[chain ${i + 1}/${tasks.length}] ${agent.name}`);
 
-    const result = await runSingleAgent(cwd, agent.label, task, i + 1, signal, onUpdate);
+    const result = await runSingleAgent(cwd, agent, task, i + 1, signal, onUpdate);
     results.push(result);
 
     if (isFailed(result)) break;
@@ -511,28 +455,41 @@ async function runChain(
 
 // ----- Extension -----
 
+const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
+  description: 'Which agent directories to use. Default: "user". Use "both" to include project-local agents.',
+  default: "user",
+});
+
 export default function orchestrator(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "orchestrate_run",
     label: "Orchestrate Agents",
-    description:
-      "Delegate work to specialized subagents. " +
-      "Available agents: spec-writer, concept-implementer, sync-implementer, test-writer, reviewer, scout. " +
-      "Mode 'single' runs one agent on one task. " +
-      "Mode 'chain' runs sequential steps, each receiving prior output via {previous} placeholder. " +
-      "Mode 'parallel' fans out to up to 4 concurrent agents on independent tasks.",
+    description: [
+      "Delegate work to specialized subagents with isolated context.",
+      "Agents are discovered from ~/.pi/agent/agents/ (user) and .pi/agents/ (project).",
+      "Use agentScope to control which pool is used.",
+      "Modes: single (agent + task), chain (sequential with {previous} placeholder), parallel (fan out up to 4 agents).",
+    ].join(" "),
     parameters: Type.Object({
       mode: Type.Union([Type.Literal("single"), Type.Literal("chain"), Type.Literal("parallel")]),
       tasks: Type.Array(Type.String(), { description: "Task descriptions, one per agent or step" }),
       agent: Type.String({
-        description: "Agent name: spec-writer, concept-implementer, sync-implementer, test-writer, reviewer, scout",
+        description: "Agent name to delegate to",
       }),
+      agentScope: Type.Optional(AgentScopeSchema),
+      confirmProjectAgents: Type.Optional(
+        Type.Boolean({ description: "Prompt before running project-local agents. Default: true.", default: true })
+      ),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const cwd = ctx.cwd ?? process.cwd();
+      const agentScope: AgentScope = params.agentScope ?? "user";
+      const confirmProjectAgents = params.confirmProjectAgents ?? true;
+
       const onUpdate = _onUpdate
         ? (msg: string) => _onUpdate({ content: [{ type: "text" as const, text: msg }], details: undefined })
         : undefined;
+
       const config = await loadConfig(cwd);
       const journal = new Journal(cwd, config);
       journal.initRun(process.env as Record<string, string | undefined>);
@@ -541,7 +498,41 @@ export default function orchestrator(pi: ExtensionAPI): void {
       const orchestratorDir = path.join(cwd, config.paths.journal, "runs", runId, "orchestrate");
       mkdirSync(orchestratorDir, { recursive: true });
 
-      const agent = resolveAgent(params.agent);
+      const discovery = discoverAgents(cwd, agentScope);
+      const agents = discovery.agents;
+
+      const agent = agents.find((a) => a.name === params.agent);
+
+      if (!agent) {
+        const available = agents.map((a) => `${a.name} (${a.source})`).join(", ") || "none";
+        return {
+          content: [{ type: "text", text: `Unknown agent: "${params.agent}". Available: ${available}` }],
+          details: {
+            mode: params.mode,
+            agentScope,
+            projectAgentsDir: discovery.projectAgentsDir,
+            results: [],
+          } as OrchestratorDetails,
+          isError: true,
+        };
+      }
+
+      if (agent.source === "project" && confirmProjectAgents && ctx.hasUI) {
+        const ok = await ctx.ui.confirm(
+          "Run project-local agent?",
+          `Agent: ${agent.name}\nSource: ${agent.filePath}\n\nProject agents are repo-controlled. Only continue for trusted repositories.`
+        );
+        if (!ok)
+          return {
+            content: [{ type: "text", text: "Canceled: project-local agent not approved." }],
+            details: {
+              mode: params.mode,
+              agentScope,
+              projectAgentsDir: discovery.projectAgentsDir,
+              results: [],
+            } as OrchestratorDetails,
+          };
+      }
 
       let results: AgentResult[];
 
@@ -554,7 +545,7 @@ export default function orchestrator(pi: ExtensionAPI): void {
           break;
         default: {
           const task = params.tasks[0] ?? "No task provided";
-          results = [await runSingleAgent(cwd, params.agent, task, undefined, signal ?? undefined, onUpdate)];
+          results = [await runSingleAgent(cwd, agent, task, undefined, signal ?? undefined, onUpdate)];
         }
       }
 
@@ -579,10 +570,12 @@ export default function orchestrator(pi: ExtensionAPI): void {
 
       const detail: OrchestratorDetails = {
         mode: params.mode,
+        agentScope,
+        projectAgentsDir: discovery.projectAgentsDir,
         results,
       };
 
-      const lines: string[] = [`Orchestration complete (${params.mode}):`, ""];
+      const lines: string[] = [`Orchestration complete (${params.mode}, ${agentScope}):`, ""];
 
       for (const result of results) {
         const status = isFailed(result) ? `FAIL${result.stopReason ? ` (${result.stopReason})` : ""}` : "OK";
