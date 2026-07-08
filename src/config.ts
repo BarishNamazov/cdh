@@ -26,7 +26,8 @@ export const CdhConfigSchema = Type.Object({
     onShipLocal: StringArray,
     optionalStages: StringArray,
     autofixRetries: Type.Number(),
-    lineCoverageInfoThreshold: Type.Number()
+    lineCoverageInfoThreshold: Type.Number(),
+    syncDiagnostics: Type.String()
   }),
   catalogPaths: StringArray,
   ship: Type.Object({
@@ -76,7 +77,8 @@ export const defaultConfig: CdhConfig = {
     ],
     optionalStages: ["smoke"],
     autofixRetries: 2,
-    lineCoverageInfoThreshold: 85
+    lineCoverageInfoThreshold: 85,
+    syncDiagnostics: "warn"
   },
   catalogPaths: [],
   ship: {

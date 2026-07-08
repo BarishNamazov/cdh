@@ -7,6 +7,7 @@ import {
   legibilityStage,
   rulesStage,
   surfaceCoverageStage,
+  syncDiagnosticsStage,
   testStage,
   typecheckStage
 } from "./stages.ts";
@@ -38,6 +39,7 @@ export async function runVerification(options: RunVerificationOptions): Promise<
     stageList.push(["tests:all", (ctx) => testStage(ctx, "all")]);
     stageList.push(["surface-coverage", surfaceCoverageStage]);
     stageList.push(["legibility", legibilityStage]);
+    stageList.push(["sync-diagnostics", syncDiagnosticsStage]);
   }
 
   const stageNames = stageList.map(([name]) => name);

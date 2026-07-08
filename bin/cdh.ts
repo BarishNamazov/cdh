@@ -74,7 +74,10 @@ async function main(): Promise<void> {
 
       console.log(`\nVerification (${tier}):`);
       for (const result of results) {
-        const icon = result.status === "pass" ? "PASS" : result.status === "skip" ? "SKIP" : "FAIL";
+        const icon = result.status === "pass" ? "PASS"
+          : result.status === "skip" ? "SKIP"
+          : result.status === "warn" ? "WARN"
+          : "FAIL";
         console.log(`  ${icon}  ${result.stage} (${result.durationMs}ms) — ${result.summary}`);
       }
 

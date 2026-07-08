@@ -6,6 +6,7 @@ import type { CdhConfig } from "../config.ts";
 import type { RepoContract } from "../repo-contract.ts";
 import type { RuleEngine } from "../rules/types.ts";
 import { type StageContext, type StageResult } from "./types.ts";
+import { runSyncDiagnostics } from "../tools/sync-diagnostics.ts";
 
 export async function journalHealthStage(ctx: StageContext): Promise<StageResult> {
   const start = Date.now();
@@ -154,5 +155,41 @@ export async function legibilityStage(ctx: StageContext): Promise<StageResult> {
     status: passed ? "pass" : "fail",
     durationMs: Date.now() - start,
     summary: passed ? "All tests have narration." : `${r10hits.length} test(s) lack trace() or console.log narration.`
+  };
+}
+
+export async function syncDiagnosticsStage(ctx: StageContext): Promise<StageResult> {
+  const start = Date.now();
+  const severity = ctx.config.verify.syncDiagnostics ?? "warn";
+
+  if (severity === "off") {
+    return {
+      stage: "sync-diagnostics",
+      status: "skip",
+      durationMs: Date.now() - start,
+      summary: "Sync diagnostics disabled by config (off)."
+    };
+  }
+
+  const report = await runSyncDiagnostics(ctx.cwd, ctx.config, ctx.contract);
+  const warns = report.diagnostics.filter((d) => d.severity === "warn");
+  const infos = report.diagnostics.filter((d) => d.severity === "info");
+
+  if (warns.length === 0 && infos.length === 0) {
+    return {
+      stage: "sync-diagnostics",
+      status: "pass",
+      durationMs: Date.now() - start,
+      summary: `No issues found in ${report.syncs} sync(s).`
+    };
+  }
+
+  const status = severity === "fail-ship" ? "fail" : "warn";
+
+  return {
+    stage: "sync-diagnostics",
+    status,
+    durationMs: Date.now() - start,
+    summary: `${warns.length} warning(s), ${infos.length} info(s) across ${report.syncs} sync(s).`
   };
 }
