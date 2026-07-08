@@ -1,12 +1,116 @@
 import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { loadConfig } from "../src/config.ts";
 import { Journal } from "../src/journal/journal.ts";
+
+// ----- Agent filesystem discovery -----
+
+const PI_AGENT_DIR = path.join(homedir(), ".pi", "agent", "agents");
+
+function parseAgentFrontmatter(content: string): { name: string; description: string; tools: string[] } | null {
+  const headerEnd = content.indexOf("---\n", 4);
+  if (!headerEnd) return null;
+
+  const header = content.slice(4, headerEnd);
+  const name = header.match(/^name:\s*(.+)/m)?.[1]?.trim();
+  const description = header.match(/^description:\s*(.+)/m)?.[1]?.trim();
+  const toolsRaw = header.match(/^tools:\s*(.+)/m)?.[1]?.trim();
+
+  if (!name || !description) return null;
+  return { name, description, tools: toolsRaw ? toolsRaw.split(/,\s*/).filter(Boolean) : [] };
+}
+
+function discoverAgents(): Map<string, AgentSpec> {
+  const discovered = new Map<string, AgentSpec>();
+
+  if (!existsSync(PI_AGENT_DIR)) return discovered;
+
+  let entries: string[];
+  try {
+    entries = readdirSync(PI_AGENT_DIR);
+  } catch {
+    return discovered;
+  }
+
+  for (const entry of entries) {
+    if (!entry.startsWith("cdh-") || !entry.endsWith(".md")) continue;
+
+    const content = readFileSync(path.join(PI_AGENT_DIR, entry), "utf8");
+    const meta = parseAgentFrontmatter(content);
+    if (!meta) continue;
+
+    const agentName = meta.name;
+
+    discovered.set(agentName, {
+      label: agentName.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      tools: meta.tools,
+      system: content.slice(content.indexOf("---\n", 4) + 4).trim(),
+    });
+  }
+
+  return discovered;
+}
+
+export function installAgents(): { installed: string[]; skipped: string[]; errors: string[] } {
+  const installed: string[] = [];
+  const skipped: string[] = [];
+  const errors: string[] = [];
+
+  const sourceDir = path.resolve(import.meta.dir, "..", "agents");
+  if (!existsSync(sourceDir)) {
+    errors.push(`Agent source directory not found: ${sourceDir}`);
+    return { installed, skipped, errors };
+  }
+
+  mkdirSync(PI_AGENT_DIR, { recursive: true });
+
+  let files: string[];
+  try {
+    files = readdirSync(sourceDir);
+  } catch {
+    errors.push(`Failed to read agent source directory: ${sourceDir}`);
+    return { installed, skipped, errors };
+  }
+
+  for (const file of files) {
+    if (!file.endsWith(".md")) continue;
+
+    const sourcePath = path.join(sourceDir, file);
+    const content = readFileSync(sourcePath, "utf8");
+    const meta = parseAgentFrontmatter(content);
+
+    if (!meta) {
+      errors.push(`Invalid agent frontmatter in ${file}`);
+      continue;
+    }
+
+    const destPath = path.join(PI_AGENT_DIR, `cdh-${file}`);
+    const exists = existsSync(destPath);
+
+    if (exists) {
+      const existing = readFileSync(destPath, "utf8");
+      const existingMeta = parseAgentFrontmatter(existing);
+      if (existingMeta && existingMeta.name === meta.name) {
+        skipped.push(meta.name);
+        continue;
+      }
+    }
+
+    try {
+      writeFileSync(destPath, content, { encoding: "utf8", mode: 0o644 });
+      installed.push(meta.name);
+    } catch {
+      errors.push(`Failed to write ${destPath}`);
+    }
+  }
+
+  return { installed, skipped, errors };
+}
 
 // ----- Agent registry -----
 
@@ -142,6 +246,11 @@ interface OrchestratorDetails {
 const CONCURRENCY_LIMIT = 4;
 
 function resolveAgent(name: string): AgentSpec {
+  const discovered = discoverAgents();
+  if (discovered.has(name)) {
+    return discovered.get(name)!;
+  }
+
   return (
     AGENTS[name] ?? {
       label: name,
@@ -187,7 +296,8 @@ async function runSingleAgent(
   agentName: string,
   task: string,
   step?: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onUpdate?: (update: string) => void
 ): Promise<AgentResult> {
   const agent = resolveAgent(agentName);
 
@@ -199,6 +309,8 @@ async function runSingleAgent(
   args.push("--append-system-prompt", promptPath);
 
   args.push(`Task: ${task}`);
+
+  onUpdate?.(`[${agentName}] Starting: ${task.slice(0, 80)}...`);
 
   const result: AgentResult = {
     agent: agentName,
@@ -318,6 +430,9 @@ async function runSingleAgent(
     /* ignore */
   }
 
+  const status = isFailed(result) ? "FAILED" : "COMPLETE";
+  onUpdate?.(`[${agentName}] ${status} (${result.usage.output} output tokens)`);
+
   return result;
 }
 
@@ -353,16 +468,23 @@ async function runParallel(
   cwd: string,
   tasks: string[],
   agent: AgentSpec,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onUpdate?: (update: string) => void
 ): Promise<AgentResult[]> {
   return mapWithConcurrencyLimit(tasks, CONCURRENCY_LIMIT, async (task, index) => {
-    return runSingleAgent(cwd, agent.label, task, index, signal);
+    return runSingleAgent(cwd, agent.label, task, index, signal, onUpdate);
   });
 }
 
 // ----- Chain execution -----
 
-async function runChain(cwd: string, tasks: string[], agent: AgentSpec, signal?: AbortSignal): Promise<AgentResult[]> {
+async function runChain(
+  cwd: string,
+  tasks: string[],
+  agent: AgentSpec,
+  signal?: AbortSignal,
+  onUpdate?: (update: string) => void
+): Promise<AgentResult[]> {
   const results: AgentResult[] = [];
   let previousOutput = "";
 
@@ -371,7 +493,9 @@ async function runChain(cwd: string, tasks: string[], agent: AgentSpec, signal?:
     if (!rawTask) continue;
     const task = rawTask.replace(/\{previous\}/g, previousOutput);
 
-    const result = await runSingleAgent(cwd, agent.label, task, i + 1, signal);
+    onUpdate?.(`[chain ${i + 1}/${tasks.length}] ${agent.label}`);
+
+    const result = await runSingleAgent(cwd, agent.label, task, i + 1, signal, onUpdate);
     results.push(result);
 
     if (isFailed(result)) break;
@@ -403,6 +527,9 @@ export default function orchestrator(pi: ExtensionAPI): void {
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const cwd = ctx.cwd ?? process.cwd();
+      const onUpdate = _onUpdate
+        ? (msg: string) => _onUpdate({ content: [{ type: "text" as const, text: msg }], details: undefined })
+        : undefined;
       const config = await loadConfig(cwd);
       const journal = new Journal(cwd, config);
       journal.initRun(process.env as Record<string, string | undefined>);
@@ -417,14 +544,14 @@ export default function orchestrator(pi: ExtensionAPI): void {
 
       switch (params.mode) {
         case "chain":
-          results = await runChain(cwd, params.tasks, agent, signal ?? undefined);
+          results = await runChain(cwd, params.tasks, agent, signal ?? undefined, onUpdate);
           break;
         case "parallel":
-          results = await runParallel(cwd, params.tasks, agent, signal ?? undefined);
+          results = await runParallel(cwd, params.tasks, agent, signal ?? undefined, onUpdate);
           break;
         default: {
           const task = params.tasks[0] ?? "No task provided";
-          results = [await runSingleAgent(cwd, params.agent, task, undefined, signal ?? undefined)];
+          results = [await runSingleAgent(cwd, params.agent, task, undefined, signal ?? undefined, onUpdate)];
         }
       }
 
