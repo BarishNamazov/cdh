@@ -8,6 +8,27 @@ import { runVerification } from "../src/verify/runner.ts";
 
 export default function verification(pi: ExtensionAPI): void {
   pi.registerTool({
+    name: "record_decision",
+    label: "Record Decision",
+    description: "Record an architectural or implementation decision with alternatives for the run journal.",
+    parameters: Type.Object({
+      title: Type.String(),
+      body: Type.String(),
+      alternatives: Type.Optional(Type.Array(Type.String())),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const cwd = ctx.cwd ?? process.cwd();
+      const config = await loadConfig(cwd);
+      const journal = new Journal(cwd, config);
+      journal.initRun(process.env as Record<string, string | undefined>);
+      journal.emitDecision(params.title, params.body, params.alternatives);
+      return {
+        content: [{ type: "text", text: `Decision recorded: ${params.title}` }],
+        details: { title: params.title }
+      };
+    }
+  });
+  pi.registerTool({
     name: "run_verification",
     label: "Run Verification",
     description: "Run verification stages against the repo. Use tier 'quick' for fast checks or 'ship' for full pre-ship verification.",
