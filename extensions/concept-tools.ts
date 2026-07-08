@@ -8,6 +8,8 @@ import { listConcepts, formatConcepts } from "../src/tools/list-concepts.ts";
 import { describeConcept, formatConceptDetail } from "../src/tools/describe-concept.ts";
 import { readDesignDoc, formatDesignDoc } from "../src/tools/design-doc.ts";
 import { checkSpecSync, formatSpecDiff } from "../src/tools/spec-sync.ts";
+import { buildSyncGraph, formatGraphReport, formatGraphJson, formatGraphMermaid } from "../src/tools/sync-graph.ts";
+import { runSyncDiagnostics, formatDiagnostics, formatDiagnosticsJson } from "../src/tools/sync-diagnostics.ts";
 
 async function resolveCtx(cwd: string): Promise<{ config: CdhConfig; contract: RepoContract }> {
   const config = await loadConfig(cwd);
@@ -129,6 +131,61 @@ export default function conceptTools(pi: ExtensionAPI): void {
       return {
         content: [{ type: "text", text: formatSpecDiff(diff) }],
         details: { diff }
+      };
+    }
+  });
+
+  pi.registerTool({
+    name: "sync_graph",
+    label: "Sync Graph",
+    description: "Build and display the sync graph showing relationships between syncs, actions, queries, and endpoints.",
+    parameters: Type.Object({ format: Type.Optional(Type.String()) }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const cwd = ctx.cwd ?? process.cwd();
+      const { config, contract } = await resolveCtx(cwd);
+      const graph = await buildSyncGraph(cwd, config, contract);
+      const format = params.format ?? "report";
+
+      let text: string;
+      switch (format) {
+        case "json":
+          text = formatGraphJson(graph);
+          break;
+        case "mermaid":
+          text = formatGraphMermaid(graph);
+          break;
+        default:
+          text = formatGraphReport(graph);
+      }
+
+      return {
+        content: [{ type: "text", text }],
+        details: { graph }
+      };
+    }
+  });
+
+  pi.registerTool({
+    name: "sync_diagnostics",
+    label: "Sync Diagnostics",
+    description: "Run diagnostics on syncs to find issues like orphan actions, missing tests, unhandled errors, and more.",
+    parameters: Type.Object({ format: Type.Optional(Type.String()) }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const cwd = ctx.cwd ?? process.cwd();
+      const { config, contract } = await resolveCtx(cwd);
+      const report = await runSyncDiagnostics(cwd, config, contract);
+      const format = params.format ?? "report";
+
+      let text: string;
+      if (format === "json") {
+        text = formatDiagnosticsJson(report);
+      } else {
+        text = formatDiagnostics(report);
+      }
+
+      return {
+        content: [{ type: "text", text }],
+        details: { report }
       };
     }
   });

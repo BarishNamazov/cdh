@@ -19,5 +19,8 @@
     "extensions/**/*.ts",
     "scripts/**/*.ts",
     "fixtures/**/*.ts"
+  ],
+  "exclude": [
+    "fixtures/sync-engine-app"
   ]
 }

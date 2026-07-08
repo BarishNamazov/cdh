@@ -13,6 +13,8 @@ import { listConcepts, formatConcepts } from "../src/tools/list-concepts.ts";
 import { describeConcept, formatConceptDetail } from "../src/tools/describe-concept.ts";
 import { checkSpecSync, formatSpecDiff, autoSyncSpec } from "../src/tools/spec-sync.ts";
 import { readDesignDoc, formatDesignDoc } from "../src/tools/design-doc.ts";
+import { buildSyncGraph, formatGraphReport, formatGraphJson, formatGraphMermaid, formatGraphDot } from "../src/tools/sync-graph.ts";
+import { runSyncDiagnostics, formatDiagnostics, formatDiagnosticsJson } from "../src/tools/sync-diagnostics.ts";
 
 const [, , command, ...args] = Bun.argv;
 const cwd = process.cwd();
@@ -290,6 +292,46 @@ async function main(): Promise<void> {
       break;
     }
 
+    case "sync-graph": {
+      const fmtIdx = args.indexOf("--format");
+      const format = fmtIdx >= 0 && args[fmtIdx + 1] ? args[fmtIdx + 1] : "report";
+
+      const contract = await getContract(config);
+      const graph = await buildSyncGraph(cwd, config, contract);
+
+      switch (format) {
+        case "json":
+          console.log(formatGraphJson(graph));
+          break;
+        case "mermaid":
+          console.log(formatGraphMermaid(graph));
+          break;
+        case "dot":
+          console.log(formatGraphDot(graph));
+          break;
+        default:
+          console.log(formatGraphReport(graph));
+      }
+      break;
+    }
+
+    case "sync-diagnostics": {
+      const fmtIdx = args.indexOf("--format");
+      const format = fmtIdx >= 0 && args[fmtIdx + 1] ? args[fmtIdx + 1] : "report";
+
+      const contract = await getContract(config);
+      const report = await runSyncDiagnostics(cwd, config, contract);
+
+      if (format === "json") {
+        console.log(formatDiagnosticsJson(report));
+      } else {
+        console.log(formatDiagnostics(report));
+      }
+
+      if (report.diagnostics.some((d) => d.severity === "warn")) process.exit(1);
+      break;
+    }
+
     case "init":
       console.log(`cdh ${command} is not implemented yet.`);
       break;
@@ -307,6 +349,8 @@ async function main(): Promise<void> {
         "  verify             Run verification stages (--tier quick|ship)",
         "  trace <C.action>   Show all syncs involving a concept action",
         "  syncs              List all syncs (--concept <name> to filter)",
+        "  sync-graph         Build and display sync graph (--format report|json|mermaid|dot)",
+        "  sync-diagnostics   Run graph diagnostics (--format report|json)",
         "  concepts           List all concepts with action/query counts",
         "  concept <name>     Show detailed surface for a concept",
         "  spec-check <name>  Check if concept spec matches code surface",
@@ -315,7 +359,8 @@ async function main(): Promise<void> {
         "",
         "Options:",
         "  --tier             quick (default) or ship",
-        "  --concept <name>   Filter syncs by concept"
+        "  --concept <name>   Filter syncs by concept",
+        "  --format           Output format for sync-graph/sync-diagnostics"
       ].join("\n"));
       break;
 

@@ -1,0 +1,18 @@
+{
+  "specsDir": "design/concepts",
+  "docs": {
+    "architecture": "design/background/architecture.md"
+  },
+  "helpers": {
+    "testingModule": "src/utils/testing.ts",
+    "exports": ["setupTestDb", "setupSyncTest"]
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "bun run check",
+    "start": "bun run start"
+  },
+  "health": {
+    "path": "/api/health"
+  }
+}

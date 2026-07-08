@@ -8,13 +8,14 @@ export interface TraceResult {
   action: string;
   asTrigger: SyncRef[];
   asEffect: SyncRef[];
+  asQuery: SyncRef[];
   totalSyncs: number;
 }
 
 export interface SyncRef {
   syncFile: string;
   syncName: string;
-  role: "when" | "then";
+  role: "when" | "then" | "where";
 }
 
 export async function traceSyncAction(
@@ -40,7 +41,9 @@ export async function traceSyncAction(
 
   if (!concept) {
     const known = concepts.map((c) => c.name).sort().join(", ");
-    throw new Error(`Unknown concept '${conceptName}'. Known concepts: ${known || "none"}`);
+    if (known) {
+      throw new Error(`Unknown concept '${conceptName}'. Known concepts: ${known}`);
+    }
   }
 
   if (conceptActions.length > 0 && !conceptActions.includes(actionName)) {
@@ -50,6 +53,7 @@ export async function traceSyncAction(
 
   const asTrigger: SyncRef[] = [];
   const asEffect: SyncRef[] = [];
+  const asQuery: SyncRef[] = [];
 
   for (const sync of syncs) {
     const syncShort = path.basename(sync.file, ".sync.ts");
@@ -65,9 +69,15 @@ export async function traceSyncAction(
         asEffect.push({ syncFile: path.relative(cwd, sync.file), syncName: syncShort, role: "then" });
       }
     }
+
+    for (const qr of sync.queryRefs) {
+      if (matchesAction(qr, conceptName, actionName)) {
+        asQuery.push({ syncFile: path.relative(cwd, sync.file), syncName: syncShort, role: "where" });
+      }
+    }
   }
 
-  return { action: actionRef, asTrigger, asEffect, totalSyncs: syncs.length };
+  return { action: actionRef, asTrigger, asEffect, asQuery, totalSyncs: syncs.length };
 }
 
 function matchesAction(ref: string, conceptName: string, actionName: string): boolean {
@@ -105,7 +115,17 @@ export function formatTraceResult(result: TraceResult): string {
     lines.push("Then this action is performed: no syncs produce this action as an effect.");
   }
 
-  const totalInvolved = new Set([...result.asTrigger, ...result.asEffect].map((r) => r.syncFile)).size;
+  if (result.asQuery.length > 0) {
+    lines.push("");
+    lines.push("where this action is queried:");
+    for (const ref of result.asQuery) {
+      lines.push(`  ${ref.syncFile} (${ref.syncName})`);
+    }
+  }
+
+  const totalInvolved = new Set(
+    [...result.asTrigger, ...result.asEffect, ...result.asQuery].map((r) => r.syncFile)
+  ).size;
   if (totalInvolved === 0) {
     lines.push("");
     lines.push(`Warning: ${result.action} is not referenced by any sync. It may be orphaned.`);

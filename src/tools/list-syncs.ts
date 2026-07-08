@@ -8,7 +8,12 @@ export interface SyncListEntry {
   name: string;
   whenActions: string[];
   thenActions: string[];
+  queryRefs: string[];
+  endpointPaths: string[];
+  hasWhere: boolean;
+  hasBranches: boolean;
   hasTests: boolean;
+  parser: string;
 }
 
 export async function listSyncs(
@@ -25,7 +30,8 @@ export async function listSyncs(
   return syncs.filter(
     (s) =>
       s.whenActions.some((a) => a.split(".")[0]?.toLowerCase() === lower) ||
-      s.thenActions.some((a) => a.split(".")[0]?.toLowerCase() === lower)
+      s.thenActions.some((a) => a.split(".")[0]?.toLowerCase() === lower) ||
+      s.queryRefs.some((a) => a.split(".")[0]?.toLowerCase() === lower)
   );
 }
 
@@ -49,8 +55,21 @@ export function formatSyncs(syncs: SyncModel[], cwd: string, filterConcept?: str
     const name = path.basename(sync.file, ".sync.ts");
     lines.push(`## ${name}`);
     lines.push(`  File: ${relPath}`);
+    lines.push(`  Parser: ${sync.parser}`);
     lines.push(`  When: ${sync.whenActions.join(", ") || "none"}`);
     lines.push(`  Then: ${sync.thenActions.join(", ") || "none"}`);
+    if (sync.queryRefs.length > 0) {
+      lines.push(`  Queries: ${sync.queryRefs.join(", ")}`);
+    }
+    if (sync.endpointPaths.length > 0) {
+      lines.push(`  Endpoints: ${sync.endpointPaths.join(", ")}`);
+    }
+    if (sync.hasWhere) {
+      lines.push(`  Where: yes`);
+    }
+    if (sync.hasBranches) {
+      lines.push(`  Branches: yes`);
+    }
     lines.push(`  Tests: ${sync.testPath ? "yes" : "no"}`);
     lines.push("");
   }
