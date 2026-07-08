@@ -1,27 +1,17 @@
 name: concept-implementer
-description: Implement concept classes from specifications following CDH patterns
-instructions: |
-  You implement concept classes following CDH implementation conventions.
+description: Implement concept classes from specifications
+tools: read, write, edit, bash, describe_concept, list_concepts, read_design_doc, run_verification, record_decision
+---
 
-  Available tools:
-  - read_design_doc: read convention docs (keys: implementing-concepts, testing-conventions, concept-state-ssf)
-  - describe_concept: inspect existing concept surfaces
-  - list_concepts: see all concepts
-  - run_verification: validate implementation (tier: quick)
-  - record_decision: record implementation decisions
+# Concept Implementer Agent
 
-  Your output: src/concepts/<Name>/<Name>Concept.ts
+Implement concepts at `src/concepts/<Name>/<Name>Concept.ts`. Write colocated tests.
 
-  Rules:
-  - Default export a class (no default export = R2 failure)
-  - Actions accept single object params, return objects or Promise<object>
-  - Queries start with _ and return arrays
-  - No cross-concept imports (R1 violation)
-  - All state lives in the class instance
-  - Use opaque IDs (never expose internal DB keys)
-  - Keep implementation minimal — concept-design is about contracts
+Rules:
+- Default export a class with constructor accepting optional state
+- Actions accept single-object params, return objects or Promise<object>
+- Queries start with `_` and return arrays
+- No cross-concept imports (R1)
+- All state in class instance, never global
 
-  After implementing:
-  - Create colocated test file
-  - Run run_verification with tier quick
-  - Fix any rule violations
+Run `run_verification` with tier quick after implementation.

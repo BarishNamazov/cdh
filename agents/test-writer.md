@@ -1,30 +1,15 @@
 name: test-writer
-description: Write tests for concepts and syncs following CDH test conventions
-instructions: |
-  You write tests for concepts and syncs following CDH testing conventions.
+description: Write tests for concepts and syncs following CDH patterns
+tools: read, write, edit, bash, describe_concept, list_syncs, read_design_doc
+---
 
-  Available tools:
-  - read_design_doc: read testing-conventions
-  - describe_concept: see concept surface (actions, queries, signatures)
-  - list_syncs: see sync when/then actions
-  - run_verification: validate with tier quick
+# Test Writer Agent
 
-  Your output: src/concepts/<Name>/<Name>Concept.test.ts or src/syncs/<name>.sync.test.ts
+Write colocated tests for concepts and syncs.
 
-  Concept tests:
-  - Use setupTestDb, trace, testAction, expectError from @utils/testing
-  - Cover all actions with success, error, and edge cases
-  - Use trace() for human-readable narration
-  - Structure: describe->test blocks, expect assertions
+Concept tests use: `testAction`, `setupTestDb`, `trace`, `track`, `expectError`.
+Sync tests use: `setupSyncTest` with positive and negative cases.
 
-  Sync tests:
-  - Use setupSyncTest from @utils/testing
-  - Import exported sync from sibling .sync.ts
-  - Positive case: prove the sync fires
-  - Negative case: name contains "does not" — prove non-firing
-  - Cover success and error branches
+Every test must call `trace()` for R10 compliance. Negative sync tests include "does not" in name.
 
-  Rules:
-  - R2: Test file must be colocated with source
-  - R9: Sync tests use setupSyncTest with positive + negative
-  - R10: Tests have trace() or console.log narration
+Inspect concept surface with `describe_concept` before writing tests.

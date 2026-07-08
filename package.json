@@ -52,7 +52,8 @@
       "./extensions/concept-tools.ts",
       "./extensions/gates.ts",
       "./extensions/verification.ts",
-      "./extensions/catalog.ts"
+      "./extensions/catalog.ts",
+      "./extensions/orchestrator.ts"
     ]
   }
 }

@@ -89,24 +89,15 @@ cdh doc testing-conventions
 
 ## Sync Engine DSL
 
-CDH supports static analysis of both legacy and sync-engine DSL sync files:
+CDH uses the sync-engine DSL for static analysis of sync files:
 
 ```typescript
-// Legacy format (string-based)
-export const labelRequestSync = {
-  when: "Requesting.createLabelRequested",
-  then: "Labeling.addLabel"
-};
-
-// Sync-engine DSL (detected as parser: sync-engine-static)
 export const auditSync = sync(({ id }: Vars) =>
   when(Labeling.addLabel, { item: "" }, { id })
     .where((frames) => frames.query(Audit._getEvents, { targetId: id }, {}))
     .then(act(Audit.record, { id, event: "CREATED" }))
 );
 
-// Endpoint DSL
-const dsl = createEndpointDsl(Requesting);
 export const auth = dsl.defineEndpoint("/auth/login", ({ Sync, Request, Respond, Actions }) => ({
   login: Sync(({ token }) => ({
     when: Actions(Request({})),
@@ -139,12 +130,31 @@ Pre-existing dirty/staged files are excluded. Use `--no-review --no-ci` to skip 
 | `sync_diagnostics` | Run diagnostics on syncs |
 | `read_design_doc` | Read design convention documents |
 | `spec_lint` | Check spec alignment with code |
-| `run_verification` | Run verification stages (quick|ship) |
+| `run_verification` | Run verification stages (quick\|ship) |
 | `record_decision` | Record architectural decisions |
-| `allow_engine` | Lift R5 gate for engine/sdk edits |
 | `catalog_search` | Search the concept catalog |
 | `catalog_show` | Inspect a catalog concept |
 | `catalog_copy` | Copy a catalog concept into the repo |
+| `orchestrate_run` | Orchestrate subagents (single/chain/parallel) |
+
+## Orchestration
+
+`orchestrate_run` delegates work to specialized subagents. Each agent runs as an isolated pi process with its own session and focused toolset.
+
+**Available agents:**
+- **spec-writer** — writes concept specs in CDH format
+- **concept-implementer** — implements concept classes from specs
+- **sync-implementer** — implements syncs using the DSL, traces before/after
+- **test-writer** — writes tests following CDH conventions
+- **reviewer** — reviews for rule compliance (read-only)
+- **scout** — explores and reports (read-only)
+
+**Modes:**
+- `single` — one agent, one task
+- `chain` — sequential steps, each receiving prior outputs as context
+- `parallel` — up to 3 concurrent agents on independent tasks
+
+Agents are isolated: reviewer is read-only, sync-implementer traces sync graph before and after edits, and all agents run verification on their work.
 
 ## Skills and Prompts
 
