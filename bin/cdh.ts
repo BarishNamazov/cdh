@@ -16,6 +16,7 @@ import { readDesignDoc, formatDesignDoc } from "../src/tools/design-doc.ts";
 import { buildSyncGraph, formatGraphReport, formatGraphJson, formatGraphMermaid, formatGraphDot } from "../src/tools/sync-graph.ts";
 import { runSyncDiagnostics, formatDiagnostics, formatDiagnosticsJson } from "../src/tools/sync-diagnostics.ts";
 import { captureSnapshot, computeTouched, runShipPreflight } from "../src/ship/index.ts";
+import { commitShip, createShipBranch } from "../src/ship/git-mutation.ts";
 
 const [, , command, ...args] = Bun.argv;
 const cwd = process.cwd();
@@ -339,6 +340,7 @@ async function main(): Promise<void> {
     case "ship": {
       const noReview = args.includes("--no-review");
       const noCi = args.includes("--no-ci");
+      const confirm = args.includes("--confirm");
 
       console.log("CDH Ship — preflight checks...\n");
 
@@ -380,6 +382,7 @@ async function main(): Promise<void> {
       const engine = createRuleEngine(cwd, config, contract);
       const journal = new Journal(cwd, config);
       journal.initRun(process.env as Record<string, string | undefined>);
+      const runId = journal.getRunId() ?? "unknown";
 
       const results = await runVerification({
         cwd,
@@ -405,7 +408,60 @@ async function main(): Promise<void> {
       }
 
       console.log("\nAll verification stages passed.");
-      console.log(`\nShip ready. Run 'cdh ship --confirm' to commit and branch.`);
+
+      if (!confirm) {
+        console.log(`\nShip ready. Run 'cdh ship --confirm' to commit and branch.`);
+        break;
+      }
+
+      if (config.ship.confirm === "never") {
+        console.log("\nGit mutation disabled by config (ship.confirm: never).");
+        break;
+      }
+
+      console.log("\nCommitting changes...");
+
+      const commitResult = commitShip(cwd, config, runId, preflight.touched);
+      if (!commitResult.ok) {
+        console.error(`Commit failed: ${commitResult.errors.join("; ")}`);
+        process.exit(1);
+      }
+
+      console.log(`Committed: ${commitResult.commitSha}`);
+
+      if (config.ship.branchPrefix) {
+        console.log("\nCreating branch...");
+        const branchResult = createShipBranch(cwd, config, runId);
+
+        if (!branchResult.ok) {
+          console.error(`Branch creation failed: ${branchResult.errors.join("; ")}`);
+          process.exit(1);
+        }
+
+        console.log(`Branch: ${branchResult.branch}`);
+
+        if (config.ship.push) {
+          const { pushBranch } = await import("../src/ship/git-mutation.ts");
+          const pushResult = pushBranch(cwd, branchResult.branch!);
+          if (pushResult.ok) {
+            console.log(`Pushed: ${branchResult.branch}`);
+
+            if (config.ship.createPr) {
+              const { createPullRequest } = await import("../src/ship/git-mutation.ts");
+              const prResult = createPullRequest(cwd, branchResult.branch!, `CDH Ship ${runId}`);
+              if (prResult.ok) {
+                console.log(`PR created: ${prResult.prUrl}`);
+              } else {
+                console.log(`PR creation skipped: ${prResult.errors.join("; ")}`);
+              }
+            }
+          } else {
+            console.log(`Push failed: ${pushResult.errors.join("; ")}`);
+          }
+        }
+      }
+
+      console.log("\nShip complete.");
       break;
     }
 
@@ -424,7 +480,7 @@ async function main(): Promise<void> {
         "  doctor             Check harness and repo health",
         "  rules              Run all rules and report violations",
         "  verify             Run verification stages (--tier quick|ship)",
-        "  ship               Preflight, verify, and ship changes (--no-review --no-ci)",
+        "  ship               Preflight, verify, and ship changes (--confirm to commit, --no-review --no-ci)",
         "  trace <C.action>   Show all syncs involving a concept action",
         "  syncs              List all syncs (--concept <name> to filter)",
         "  sync-graph         Build and display sync graph (--format report|json|mermaid|dot)",
