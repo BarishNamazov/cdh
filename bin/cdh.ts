@@ -31,6 +31,131 @@ import { runVerification } from "../src/verify/runner.ts";
 const [, , command, ...args] = Bun.argv;
 const cwd = process.cwd();
 
+function showCommandHelp(cmd: string | undefined): void {
+  if (!cmd || cmd === "--help" || cmd === "-h") {
+    console.log(
+      [
+        "Usage: cdh <command> [options]",
+        "",
+        "Commands:",
+        "  init               Initialize a new concept-design repo",
+        "  doctor             Check harness and repo health",
+        "  rules              Run all rules and report violations",
+        "  verify             Run verification stages (--tier quick|ship)",
+        "  ship               Preflight, verify, and ship changes (--confirm to commit, --no-review --no-ci)",
+        "  trace <C.action>   Show all syncs involving a concept action",
+        "  syncs              List all syncs (--concept <name> to filter)",
+        "  sync-graph         Build and display sync graph (--format report|json|mermaid|dot)",
+        "  sync-diagnostics   Run graph diagnostics (--format report|json)",
+        "  concepts           List all concepts with action/query counts",
+        "  concept <name>     Show detailed surface for a concept",
+        "  spec-check <name>  Check if concept spec matches code surface",
+        "  spec-sync <name>   Update spec to match code (--dry-run to preview)",
+        "  doc <key>          Read a design document (convention doc)",
+        "",
+        "Options:",
+        "  --tier             quick (default) or ship",
+        "  --concept <name>   Filter syncs by concept",
+        "  --format           Output format for sync-graph/sync-diagnostics",
+        "",
+        `Run 'cdh <command> --help' for command-specific options.`,
+      ].join("\n")
+    );
+    return;
+  }
+
+  switch (cmd) {
+    case "init":
+      console.log("Usage: cdh init\n\nScaffold a new concept-design repo with directory structure,\nconfig file, and repo contract.");
+      break;
+    case "doctor":
+      console.log("Usage: cdh doctor\n\nCheck harness and repo health. Reports missing directories,\nspec files, test files, and contract validity.");
+      break;
+    case "rules":
+      console.log("Usage: cdh rules\n\nRun all rules (R1-R10) and report violations with severity.");
+      break;
+    case "verify":
+      console.log(
+        [
+          "Usage: cdh verify [--tier quick|ship]",
+          "",
+          "  --tier quick   Typecheck and rules (default, runs on agent end)",
+          "  --tier ship     Full verification: journal, typecheck, rules, tests,",
+          "                  surface-coverage, legibility, sync-diagnostics",
+        ].join("\n")
+      );
+      break;
+    case "ship":
+      console.log(
+        [
+          "Usage: cdh ship [--confirm|--execute] [--no-review] [--no-ci]",
+          "",
+          "Preflight, verify, commit, branch, push, and create PR.",
+          "  --confirm, --execute   Execute git mutations (commit/branch/push/PR)",
+          "                          Without this flag, ship only preflights and verifies.",
+          "  --no-review            Skip review stage",
+          "  --no-ci                Skip CI stage",
+        ].join("\n")
+      );
+      break;
+    case "trace":
+      console.log("Usage: cdh trace <Concept.action>\n\nShow all syncs involving a concept action.\nExample: cdh trace Labeling.addLabel");
+      break;
+    case "syncs":
+      console.log("Usage: cdh syncs [--concept <name>]\n\nList all synchronizations, optionally filtered by concept.");
+      break;
+    case "sync-graph":
+      console.log(
+        [
+          "Usage: cdh sync-graph [--format report|json|mermaid|dot]",
+          "",
+          "Build and display the sync dependency graph.",
+          "  --format report   Human-readable report (default)",
+          "  --format json      JSON output",
+          "  --format mermaid   Mermaid diagram",
+          "  --format dot       Graphviz DOT output",
+        ].join("\n")
+      );
+      break;
+    case "sync-diagnostics":
+      console.log(
+        [
+          "Usage: cdh sync-diagnostics [--format report|json]",
+          "",
+          "Run diagnostics on syncs: unknown actions, missing tests, orphaned actions,",
+          "untested branches, missing respond, heavy where clauses.",
+          "Exits 1 if any warnings are found.",
+          "  --format report   Human-readable report (default)",
+          "  --format json      JSON output",
+        ].join("\n")
+      );
+      break;
+    case "concepts":
+      console.log("Usage: cdh concepts\n\nList all concepts with action and query counts.");
+      break;
+    case "concept":
+      console.log("Usage: cdh concept <name>\n\nShow detailed surface for a concept including its spec.\nExample: cdh concept Labeling");
+      break;
+    case "spec-check":
+      console.log("Usage: cdh spec-check <concept-name>\n\nCheck if a concept's spec file matches its code surface.\nExits 1 if differences are found.");
+      break;
+    case "spec-sync":
+      console.log(
+        [
+          "Usage: cdh spec-sync <concept-name> [--dry-run]",
+          "Auto-update a spec file to match code surface.",
+          "  --dry-run   Preview changes without writing",
+        ].join("\n")
+      );
+      break;
+    case "doc":
+      console.log("Usage: cdh doc <key>\n\nRead a design document by its key from design/index.json docs.\nExample: cdh doc testing-conventions");
+      break;
+    default:
+      console.error(`Unknown command: ${cmd}`);
+  }
+}
+
 async function getContract(config: CdhConfig) {
   try {
     return (await loadRepoContract(cwd, config)).contract;
@@ -45,6 +170,11 @@ async function getContract(config: CdhConfig) {
 
 async function main(): Promise<void> {
   const config = await loadConfig(cwd);
+
+  if (args.includes("--help") || args.includes("-h")) {
+    showCommandHelp(command);
+    return;
+  }
 
   switch (command) {
     case "rules": {
@@ -153,7 +283,9 @@ async function main(): Promise<void> {
       const result = await describeConcept(cwd, config, contract, name);
 
       if (!result) {
-        console.error(`Concept '${name}' not found.`);
+        const concepts = await discoverConcepts(cwd, config, contract);
+        const names = concepts.map((c) => c.name).sort();
+        console.error(`Concept '${name}' not found. Available concepts: ${names.length > 0 ? names.join(", ") : "(none)"}`);
         process.exit(1);
       }
 
@@ -172,7 +304,9 @@ async function main(): Promise<void> {
       const diff = await checkSpecSync(cwd, config, contract, name);
 
       if (!diff) {
-        console.error(`Concept '${name}' not found or has no spec file.`);
+        const concepts = await discoverConcepts(cwd, config, contract);
+        const names = concepts.map((c) => c.name).sort();
+        console.error(`Concept '${name}' not found or has no spec file. Available concepts: ${names.length > 0 ? names.join(", ") : "(none)"}`);
         process.exit(1);
       }
 
@@ -345,12 +479,12 @@ async function main(): Promise<void> {
         console.log(formatDiagnostics(report));
       }
 
-      if (report.diagnostics.some((d) => d.severity === "warn" && d.rule === "missing-test")) process.exit(1);
+      if (report.diagnostics.some((d) => d.severity === "warn")) process.exit(1);
       break;
     }
 
     case "ship": {
-      const confirm = args.includes("--confirm");
+      const confirm = args.includes("--confirm") || args.includes("--execute");
 
       console.log("CDH Ship — preflight checks...\n");
 
@@ -416,7 +550,7 @@ async function main(): Promise<void> {
       console.log("\nAll verification stages passed.");
 
       if (!confirm) {
-        console.log(`\nShip ready. Run 'cdh ship --confirm' to commit and branch.`);
+        console.log(`\nShip ready. Run 'cdh ship --confirm' (or --execute) to commit and branch.`);
         break;
       }
 
@@ -570,7 +704,7 @@ async function main(): Promise<void> {
           "  doctor             Check harness and repo health",
           "  rules              Run all rules and report violations",
           "  verify             Run verification stages (--tier quick|ship)",
-          "  ship               Preflight, verify, and ship changes (--confirm to commit, --no-review --no-ci)",
+          "  ship               Preflight, verify, and ship changes (--confirm|--execute to commit, --no-review --no-ci)",
           "  trace <C.action>   Show all syncs involving a concept action",
           "  syncs              List all syncs (--concept <name> to filter)",
           "  sync-graph         Build and display sync graph (--format report|json|mermaid|dot)",
@@ -585,6 +719,9 @@ async function main(): Promise<void> {
           "  --tier             quick (default) or ship",
           "  --concept <name>   Filter syncs by concept",
           "  --format           Output format for sync-graph/sync-diagnostics",
+          "  --execute          Execute ship mutations (alias for --confirm)",
+          "",
+          `Run 'cdh <command> --help' for command-specific options.`,
         ].join("\n")
       );
       break;
