@@ -25,6 +25,9 @@ cdh verify --tier quick
 # Full ship verification (all stages) — runs before /ship
 cdh verify --tier ship
 
+# Ship changes: preflight, verify, commit, branch, push, PR
+cdh ship --confirm --no-review --no-ci
+
 # Init a new concept-design repo
 cdh init
 
@@ -36,6 +39,12 @@ cdh trace Labeling.addLabel
 
 # List all syncs (optionally filter by concept)
 cdh syncs --concept Labeling
+
+# Build and display sync graph
+cdh sync-graph --format report|json|mermaid|dot
+
+# Run sync diagnostics (warnings, missing tests, etc.)
+cdh sync-diagnostics --format report|json
 
 # List all concepts with action/query counts
 cdh concepts
@@ -76,6 +85,83 @@ cdh doc testing-conventions
 - `tests:all` — `bun test` passes
 - `surface-coverage` — all surface methods are exercised
 - `legibility` — principle/multi-action tests have narration
+- `sync-diagnostics` — sync graph warnings (configurable: warn|fail-ship|off)
+
+## Sync Engine DSL
+
+CDH supports static analysis of both legacy and sync-engine DSL sync files:
+
+```typescript
+// Legacy format (string-based)
+export const labelRequestSync = {
+  when: "Requesting.createLabelRequested",
+  then: "Labeling.addLabel"
+};
+
+// Sync-engine DSL (detected as parser: sync-engine-static)
+export const auditSync = sync(({ id }: Vars) =>
+  when(Labeling.addLabel, { item: "" }, { id })
+    .where((frames) => frames.query(Audit._getEvents, { targetId: id }, {}))
+    .then(act(Audit.record, { id, event: "CREATED" }))
+);
+
+// Endpoint DSL
+const dsl = createEndpointDsl(Requesting);
+export const auth = dsl.defineEndpoint("/auth/login", ({ Sync, Request, Respond, Actions }) => ({
+  login: Sync(({ token }) => ({
+    when: Actions(Request({})),
+    then: Actions(Respond({ token }))
+  }))
+}));
+```
+
+## Ship Safety
+
+`cdh ship` enforces a conservative workflow:
+
+1. **Preflight** — git repo check, merge/rebase detection, dirty file exclusion
+2. **Verification** — all ship-tier stages must pass
+3. **Commit** — only touched files, includes `Cdh-Run: <runId>` trailer
+4. **Branch** — `${branchPrefix}${runId}`, suffix on collision
+5. **Push/PR** — optional, controlled by config
+
+Pre-existing dirty/staged files are excluded. Use `--no-review --no-ci` to skip review and CI stages.
+
+## Agent Tools (pi)
+
+| Tool | Description |
+|------|-------------|
+| `list_concepts` | List all concepts with surface details |
+| `describe_concept` | Show detailed surface for a concept |
+| `list_syncs` | List all syncs with when/then/query refs |
+| `trace_sync` | Trace an action through the sync graph |
+| `sync_graph` | Build and display the sync graph |
+| `sync_diagnostics` | Run diagnostics on syncs |
+| `read_design_doc` | Read design convention documents |
+| `spec_lint` | Check spec alignment with code |
+| `run_verification` | Run verification stages (quick|ship) |
+| `record_decision` | Record architectural decisions |
+| `allow_engine` | Lift R5 gate for engine/sdk edits |
+| `catalog_search` | Search the concept catalog |
+| `catalog_show` | Inspect a catalog concept |
+| `catalog_copy` | Copy a catalog concept into the repo |
+
+## Skills and Prompts
+
+Skills guide agents through common workflows:
+- **concept-workflow** — implementing concepts from spec
+- **sync-workflow** — implementing syncs with graph analysis
+- **debugging-syncs** — diagnosing sync issues
+- **frontend-shadcn** — building frontend components
+
+Prompt templates for common tasks:
+- `/new-concept` — create a concept from scratch or catalog
+- `/new-sync` — create a synchronization
+- `/implement-feature` — full-cycle feature implementation
+- `/review` — code review with rule compliance check
+- `/ship` — ship changes with verification
+- `/status` — current run status
+- `/report` — comprehensive run report
 
 ## Catalog
 
@@ -87,9 +173,6 @@ cdh catalog copy authenticating
 
 # Copy and rename
 cdh catalog copy authenticating --as Accounting
-
-# Search available concepts
-cdh catalog search auth
 ```
 
 Available concepts:
