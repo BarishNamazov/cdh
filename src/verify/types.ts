@@ -1,7 +1,7 @@
-import { type CdhConfig } from "../config.ts";
-import { type RepoContract } from "../repo-contract.ts";
-import { type RuleEngine } from "../rules/types.ts";
-import { type Journal } from "../journal/journal.ts";
+import type { CdhConfig } from "../config.ts";
+import type { Journal } from "../journal/journal.ts";
+import type { RepoContract } from "../repo-contract.ts";
+import type { RuleEngine } from "../rules/types.ts";
 
 export interface StageResult {
   stage: string;

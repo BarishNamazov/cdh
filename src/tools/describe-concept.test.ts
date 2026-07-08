@@ -1,5 +1,5 @@
-import path from "node:path";
 import { describe, expect, test } from "bun:test";
+import path from "node:path";
 import { defaultConfig } from "../config.ts";
 import { loadRepoContract } from "../repo-contract.ts";
 import { describeConcept, formatConceptDetail } from "./describe-concept.ts";
@@ -12,10 +12,10 @@ describe("describeConcept", () => {
     const concept = await describeConcept(validApp, defaultConfig, contract, "Labeling");
 
     expect(concept).not.toBeNull();
-    expect(concept!.name).toBe("Labeling");
-    expect(concept!.actions.map((a) => a.name)).toEqual(["addLabel", "removeLabel"]);
-    expect(concept!.queries.map((q) => q.name)).toEqual(["_getLabels"]);
-    expect(concept!.specPath?.endsWith("design/concepts/labeling.md")).toBe(true);
+    expect(concept?.name).toBe("Labeling");
+    expect(concept?.actions.map((a) => a.name)).toEqual(["addLabel", "removeLabel"]);
+    expect(concept?.queries.map((q) => q.name)).toEqual(["_getLabels"]);
+    expect(concept?.specPath?.endsWith("design/concepts/labeling.md")).toBe(true);
   });
 
   test("returns the Requesting concept", async () => {
@@ -23,7 +23,7 @@ describe("describeConcept", () => {
     const concept = await describeConcept(validApp, defaultConfig, contract, "Requesting");
 
     expect(concept).not.toBeNull();
-    expect(concept!.name).toBe("Requesting");
+    expect(concept?.name).toBe("Requesting");
   });
 
   test("matches concept name case-insensitively", async () => {
@@ -31,7 +31,7 @@ describe("describeConcept", () => {
     const concept = await describeConcept(validApp, defaultConfig, contract, "labeling");
 
     expect(concept).not.toBeNull();
-    expect(concept!.name).toBe("Labeling");
+    expect(concept?.name).toBe("Labeling");
   });
 
   test("matches concept name with mixed case", async () => {
@@ -39,7 +39,7 @@ describe("describeConcept", () => {
     const concept = await describeConcept(validApp, defaultConfig, contract, "lAbElInG");
 
     expect(concept).not.toBeNull();
-    expect(concept!.name).toBe("Labeling");
+    expect(concept?.name).toBe("Labeling");
   });
 
   test("returns null for an unknown concept name", async () => {

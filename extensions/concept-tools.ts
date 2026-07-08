@@ -1,15 +1,15 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { loadConfig, type CdhConfig } from "../src/config.ts";
+import { type CdhConfig, loadConfig } from "../src/config.ts";
 import { loadRepoContract, type RepoContract } from "../src/repo-contract.ts";
-import { traceSyncAction, formatTraceResult } from "../src/tools/trace-sync.ts";
-import { listSyncs, formatSyncs } from "../src/tools/list-syncs.ts";
-import { listConcepts, formatConcepts } from "../src/tools/list-concepts.ts";
 import { describeConcept, formatConceptDetail } from "../src/tools/describe-concept.ts";
-import { readDesignDoc, formatDesignDoc } from "../src/tools/design-doc.ts";
+import { formatDesignDoc, readDesignDoc } from "../src/tools/design-doc.ts";
+import { formatConcepts, listConcepts } from "../src/tools/list-concepts.ts";
+import { formatSyncs, listSyncs } from "../src/tools/list-syncs.ts";
 import { checkSpecSync, formatSpecDiff } from "../src/tools/spec-sync.ts";
-import { buildSyncGraph, formatGraphReport, formatGraphJson, formatGraphMermaid } from "../src/tools/sync-graph.ts";
-import { runSyncDiagnostics, formatDiagnostics, formatDiagnosticsJson } from "../src/tools/sync-diagnostics.ts";
+import { formatDiagnostics, formatDiagnosticsJson, runSyncDiagnostics } from "../src/tools/sync-diagnostics.ts";
+import { buildSyncGraph, formatGraphJson, formatGraphMermaid, formatGraphReport } from "../src/tools/sync-graph.ts";
+import { formatTraceResult, traceSyncAction } from "../src/tools/trace-sync.ts";
 
 async function resolveCtx(cwd: string): Promise<{ config: CdhConfig; contract: RepoContract }> {
   const config = await loadConfig(cwd);
@@ -29,9 +29,9 @@ export default function conceptTools(pi: ExtensionAPI): void {
       const concepts = await listConcepts(cwd, config, contract);
       return {
         content: [{ type: "text", text: formatConcepts(concepts, cwd) }],
-        details: { concepts }
+        details: { concepts },
       };
-    }
+    },
   });
 
   pi.registerTool({
@@ -50,9 +50,9 @@ export default function conceptTools(pi: ExtensionAPI): void {
 
       return {
         content: [{ type: "text", text: formatConceptDetail(result, cwd) }],
-        details: { concept: result }
+        details: { concept: result },
       };
-    }
+    },
   });
 
   pi.registerTool({
@@ -66,15 +66,16 @@ export default function conceptTools(pi: ExtensionAPI): void {
       const syncs = await listSyncs(cwd, config, contract, params.concept);
       return {
         content: [{ type: "text", text: formatSyncs(syncs, cwd, params.concept) }],
-        details: { syncs }
+        details: { syncs },
       };
-    }
+    },
   });
 
   pi.registerTool({
     name: "trace_sync",
     label: "Trace Sync",
-    description: "Given a concept action (e.g. 'Labeling.addLabel'), list all syncs whose when/then reference it. Flags orphaned actions.",
+    description:
+      "Given a concept action (e.g. 'Labeling.addLabel'), list all syncs whose when/then reference it. Flags orphaned actions.",
     parameters: Type.Object({ action: Type.String() }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const cwd = ctx.cwd ?? process.cwd();
@@ -84,31 +85,32 @@ export default function conceptTools(pi: ExtensionAPI): void {
         const result = await traceSyncAction(cwd, config, contract, params.action);
         return {
           content: [{ type: "text", text: formatTraceResult(result) }],
-          details: { trace: result }
+          details: { trace: result },
         };
       } catch (err) {
         return {
           content: [{ type: "text", text: err instanceof Error ? err.message : String(err) }],
-          details: { error: true }
+          details: { error: true },
         };
       }
-    }
+    },
   });
 
   pi.registerTool({
     name: "read_design_doc",
     label: "Read Design Doc",
-    description: "Read a design document by its key (e.g. 'testing-conventions', 'concept-spec-conventions'). Lists available keys on error.",
+    description:
+      "Read a design document by its key (e.g. 'testing-conventions', 'concept-spec-conventions'). Lists available keys on error.",
     parameters: Type.Object({ key: Type.String() }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const cwd = ctx.cwd ?? process.cwd();
-      const { config, contract } = await resolveCtx(cwd);
+      const { contract } = await resolveCtx(cwd);
       const result = readDesignDoc(cwd, contract, params.key);
       return {
         content: [{ type: "text", text: formatDesignDoc(result) }],
-        details: result
+        details: result,
       };
-    }
+    },
   });
 
   pi.registerTool({
@@ -124,21 +126,22 @@ export default function conceptTools(pi: ExtensionAPI): void {
       if (!diff) {
         return {
           content: [{ type: "text", text: `Concept '${params.name}' not found or has no spec file.` }],
-          details: { found: false }
+          details: { found: false },
         };
       }
 
       return {
         content: [{ type: "text", text: formatSpecDiff(diff) }],
-        details: { diff }
+        details: { diff },
       };
-    }
+    },
   });
 
   pi.registerTool({
     name: "sync_graph",
     label: "Sync Graph",
-    description: "Build and display the sync graph showing relationships between syncs, actions, queries, and endpoints.",
+    description:
+      "Build and display the sync graph showing relationships between syncs, actions, queries, and endpoints.",
     parameters: Type.Object({ format: Type.Optional(Type.String()) }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const cwd = ctx.cwd ?? process.cwd();
@@ -160,15 +163,16 @@ export default function conceptTools(pi: ExtensionAPI): void {
 
       return {
         content: [{ type: "text", text }],
-        details: { graph }
+        details: { graph },
       };
-    }
+    },
   });
 
   pi.registerTool({
     name: "sync_diagnostics",
     label: "Sync Diagnostics",
-    description: "Run diagnostics on syncs to find issues like orphan actions, missing tests, unhandled errors, and more.",
+    description:
+      "Run diagnostics on syncs to find issues like orphan actions, missing tests, unhandled errors, and more.",
     parameters: Type.Object({ format: Type.Optional(Type.String()) }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const cwd = ctx.cwd ?? process.cwd();
@@ -185,8 +189,8 @@ export default function conceptTools(pi: ExtensionAPI): void {
 
       return {
         content: [{ type: "text", text }],
-        details: { report }
+        details: { report },
       };
-    }
+    },
   });
 }

@@ -1,6 +1,6 @@
 import { expect } from "bun:test";
-import RequestingConcept from "./RequestingConcept.ts";
 import { expectError, setupTestDb, testAction, trace, track } from "../../utils/testing.ts";
+import RequestingConcept from "./RequestingConcept.ts";
 
 testAction("createLabelRequested", "creates a request with an id", () => {
   trace("A user requests a label and gets back a request id.");

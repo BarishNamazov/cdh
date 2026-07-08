@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { Type, type Static } from "@sinclair/typebox";
+import { type Static, Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import { type CdhConfig, loadConfig } from "./config.ts";
 
@@ -10,16 +10,16 @@ export const RepoContractSchema = Type.Object({
   docs: Type.Record(Type.String(), Type.String()),
   helpers: Type.Object({
     testingModule: Type.String(),
-    exports: Type.Array(Type.String())
+    exports: Type.Array(Type.String()),
   }),
   scripts: Type.Object({
     test: Type.String(),
     typecheck: Type.String(),
-    start: Type.String()
+    start: Type.String(),
   }),
   health: Type.Object({
-    path: Type.String()
-  })
+    path: Type.String(),
+  }),
 });
 
 export type RepoContract = Static<typeof RepoContractSchema>;

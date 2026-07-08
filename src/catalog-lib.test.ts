@@ -1,8 +1,8 @@
-import path from "node:path";
-import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
-import { defaultConfig, type CdhConfig } from "./config.ts";
-import { copyCatalogConcept, type CatalogEntry } from "./catalog-lib.ts";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import path from "node:path";
+import { type CatalogEntry, copyCatalogConcept } from "./catalog-lib.ts";
+import { type CdhConfig, defaultConfig } from "./config.ts";
 import type { RepoContract } from "./repo-contract.ts";
 
 const catalogDir = path.resolve(import.meta.dir, "..", "catalog");
@@ -14,13 +14,13 @@ const authenticatingEntry: CatalogEntry = {
   summary: "Username/password identity with registration and credential checks.",
   tags: ["identity", "security"],
   pairsWith: ["sessioning", "accesscontrolling"],
-  files: ["concept.md", "AuthenticatingConcept.ts", "AuthenticatingConcept.test.ts", "README.md"]
+  files: ["concept.md", "AuthenticatingConcept.ts", "AuthenticatingConcept.test.ts", "README.md"],
 };
 
 function makeConfig(conceptsPath: string): CdhConfig {
   return {
     ...defaultConfig,
-    paths: { ...defaultConfig.paths, concepts: conceptsPath }
+    paths: { ...defaultConfig.paths, concepts: conceptsPath },
   };
 }
 
@@ -30,7 +30,7 @@ function makeContract(specsDir: string): RepoContract {
     docs: {},
     helpers: { testingModule: "@utils/testing.ts", exports: [] },
     scripts: { test: "echo ok", typecheck: "echo ok", start: "echo ok" },
-    health: { path: "/api/health" }
+    health: { path: "/api/health" },
   };
 }
 
@@ -74,7 +74,7 @@ describe("copyCatalogConcept", () => {
     const contract = makeContract("design/concepts");
 
     const result = copyCatalogConcept(catalogDir, tmp, authenticatingEntry, config, contract, {
-      as: "Auth"
+      as: "Auth",
     });
 
     expect(result.conceptName).toBe("Auth");
@@ -95,7 +95,7 @@ describe("copyCatalogConcept", () => {
     const contract = makeContract("design/concepts");
 
     copyCatalogConcept(catalogDir, tmp, authenticatingEntry, config, contract, {
-      as: "Auth"
+      as: "Auth",
     });
 
     const specPath = path.join(tmp, "design", "concepts", "auth.md");
@@ -126,7 +126,7 @@ describe("copyCatalogConcept", () => {
     copyCatalogConcept(catalogDir, tmp, authenticatingEntry, config, contract);
 
     const result = copyCatalogConcept(catalogDir, tmp, authenticatingEntry, config, contract, {
-      overwrite: true
+      overwrite: true,
     });
 
     expect(result.conceptName).toBe("Authenticating");
@@ -175,7 +175,7 @@ describe("copyCatalogConcept", () => {
     const contract = makeContract("design/concepts");
 
     copyCatalogConcept(catalogDir, tmp, authenticatingEntry, config, contract, {
-      as: "IdentityManager"
+      as: "IdentityManager",
     });
 
     const conceptFile = path.join(tmp, "src/concepts", "IdentityManager", "IdentityManagerConcept.ts");

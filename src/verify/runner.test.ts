@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { CdhConfig } from "../config.ts";
+import type { Journal } from "../journal/journal.ts";
 import type { RepoContract } from "../repo-contract.ts";
 import type { RuleEngine, RuleHit } from "../rules/types.ts";
-import type { Journal } from "../journal/journal.ts";
 import { runVerification } from "./runner.ts";
 
 const baseConfig: CdhConfig = {
@@ -10,13 +10,17 @@ const baseConfig: CdhConfig = {
   rules: { importAllowlist: { syncs: ["@engine"] }, helperMethodAllowlist: [] },
   testing: { errorAssertionPatterns: ["expectError("] },
   verify: {
-    onAgentEnd: [], onShipLocal: [], optionalStages: [],
-    autofixRetries: 2, lineCoverageInfoThreshold: 85, syncDiagnostics: "warn"
+    onAgentEnd: [],
+    onShipLocal: [],
+    optionalStages: [],
+    autofixRetries: 2,
+    lineCoverageInfoThreshold: 85,
+    syncDiagnostics: "warn",
   },
   catalogPaths: [],
   ship: { confirm: "interactive" as const, branchPrefix: "cdh/", review: true, push: true, createPr: true, ci: true },
   ci: { provider: "github", workflow: "ci.yml" },
-  frontend: { enabled: false }
+  frontend: { enabled: false },
 };
 
 const baseContract: RepoContract = {
@@ -24,7 +28,7 @@ const baseContract: RepoContract = {
   docs: {},
   helpers: { testingModule: "@utils/testing.ts", exports: [] },
   scripts: { test: "true", typecheck: "true", start: "true" },
-  health: { path: "/api/health" }
+  health: { path: "/api/health" },
 };
 
 interface JournalSpy {
@@ -56,10 +60,18 @@ function makeJournalSpy(): JournalSpy {
     },
     emitDecision() {},
     emitCatalogCopy() {},
-    isDegraded() { return false; },
-    getEvents() { return []; },
-    getRunId() { return "test-run"; },
-    generateReport() { return ""; }
+    isDegraded() {
+      return false;
+    },
+    getEvents() {
+      return [];
+    },
+    getRunId() {
+      return "test-run";
+    },
+    generateReport() {
+      return "";
+    },
   } as unknown as Journal;
 
   return { journal, startedEvents, stageEvents, finishedEvents };
@@ -67,9 +79,15 @@ function makeJournalSpy(): JournalSpy {
 
 function makeRuleEngine(hits: RuleHit[] = []): RuleEngine {
   return {
-    checkContent() { return []; },
-    checkFile() { return Promise.resolve([]); },
-    checkRepo() { return Promise.resolve(hits); }
+    checkContent() {
+      return [];
+    },
+    checkFile() {
+      return Promise.resolve([]);
+    },
+    checkRepo() {
+      return Promise.resolve(hits);
+    },
   };
 }
 
@@ -83,7 +101,7 @@ describe("runVerification", () => {
       contract: baseContract,
       ruleEngine: makeRuleEngine(),
       journal: spy.journal,
-      tier: "quick"
+      tier: "quick",
     });
 
     expect(results.length).toBe(2);
@@ -100,7 +118,7 @@ describe("runVerification", () => {
       contract: baseContract,
       ruleEngine: makeRuleEngine(),
       journal: spy.journal,
-      tier: "ship"
+      tier: "ship",
     });
 
     expect(results.length).toBe(7);
@@ -111,7 +129,7 @@ describe("runVerification", () => {
       "tests:all",
       "surface-coverage",
       "legibility",
-      "sync-diagnostics"
+      "sync-diagnostics",
     ]);
   });
 
@@ -124,7 +142,7 @@ describe("runVerification", () => {
       contract: baseContract,
       ruleEngine: makeRuleEngine(),
       journal: spy.journal,
-      tier: "quick"
+      tier: "quick",
     });
 
     expect(spy.startedEvents.length).toBe(1);
@@ -141,7 +159,7 @@ describe("runVerification", () => {
       contract: baseContract,
       ruleEngine: makeRuleEngine(),
       journal: spy.journal,
-      tier: "quick"
+      tier: "quick",
     });
 
     expect(spy.stageEvents.length).toBe(2);
@@ -162,7 +180,7 @@ describe("runVerification", () => {
       contract: baseContract,
       ruleEngine: makeRuleEngine(),
       journal: spy.journal,
-      tier: "quick"
+      tier: "quick",
     });
 
     expect(spy.finishedEvents.length).toBe(1);
@@ -176,7 +194,7 @@ describe("runVerification", () => {
 
     const blockingHits: RuleHit[] = [
       { rule: "R07", severity: "block", path: "src/foo.ts", message: "missing test" },
-      { rule: "R08", severity: "fail-ship", path: "src/bar.ts", message: "no track" }
+      { rule: "R08", severity: "fail-ship", path: "src/bar.ts", message: "no track" },
     ];
     const engine = makeRuleEngine(blockingHits);
 
@@ -186,7 +204,7 @@ describe("runVerification", () => {
       contract: baseContract,
       ruleEngine: engine,
       journal: spy.journal,
-      tier: "ship"
+      tier: "ship",
     });
 
     const failedStages = results.filter((r) => r.status === "fail");
@@ -207,7 +225,7 @@ describe("runVerification", () => {
       contract: baseContract,
       ruleEngine: makeRuleEngine(),
       journal: spy.journal,
-      tier: "quick"
+      tier: "quick",
     });
 
     for (const result of results) {
@@ -227,7 +245,7 @@ describe("runVerification", () => {
       contract: baseContract,
       ruleEngine: makeRuleEngine(),
       journal: spy.journal,
-      tier: "ship"
+      tier: "ship",
     });
 
     expect(spy.startedEvents[0].stages).toEqual([
@@ -237,7 +255,7 @@ describe("runVerification", () => {
       "tests:all",
       "surface-coverage",
       "legibility",
-      "sync-diagnostics"
+      "sync-diagnostics",
     ]);
   });
 });

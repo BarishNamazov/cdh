@@ -27,7 +27,7 @@ export function createGatePolicy(cwd: string, _config: CdhConfig): GatePolicy {
         rule: "protected-path",
         severity: "block",
         path: filePath,
-        message: `Writing to protected path '${filePath}' is blocked. Protected paths: ${PROTECTED_PATHS.join(", ")}.`
+        message: `Writing to protected path '${filePath}' is blocked. Protected paths: ${PROTECTED_PATHS.join(", ")}.`,
       };
     },
 
@@ -38,7 +38,7 @@ export function createGatePolicy(cwd: string, _config: CdhConfig): GatePolicy {
         return {
           rule: "dangerous-command",
           severity: "block",
-          message: `Recursive deletion outside working directory is blocked.`
+          message: `Recursive deletion outside working directory is blocked.`,
         };
       }
 
@@ -46,7 +46,7 @@ export function createGatePolicy(cwd: string, _config: CdhConfig): GatePolicy {
         return {
           rule: "dangerous-command",
           severity: "block",
-          message: `Force-push is blocked.`
+          message: `Force-push is blocked.`,
         };
       }
 
@@ -54,7 +54,7 @@ export function createGatePolicy(cwd: string, _config: CdhConfig): GatePolicy {
         return {
           rule: "dangerous-command",
           severity: "block",
-          message: `Writing to .env files through shell redirection is blocked.`
+          message: `Writing to .env files through shell redirection is blocked.`,
         };
       }
 
@@ -63,13 +63,13 @@ export function createGatePolicy(cwd: string, _config: CdhConfig): GatePolicy {
           return {
             rule: "dangerous-command",
             severity: "block",
-            message: `Command references protected path '${pp}'.`
+            message: `Command references protected path '${pp}'.`,
           };
         }
       }
 
       return null;
-    }
+    },
   };
 }
 

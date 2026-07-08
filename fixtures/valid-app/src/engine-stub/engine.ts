@@ -26,8 +26,8 @@ export function when<A>(action: A, input?: unknown, output?: unknown): SyncBuild
     then: <T>(acts: T): T => acts,
     where: <T>(fn: (frames: Frames) => T): SyncBuilderWithWhere<T> => {
       const result = fn({
-        query: <T>(_fn: unknown, _input: unknown, _output: unknown): T => ({} as T),
-        queryOptional: <T>(_fn: unknown, _input: unknown, _output: unknown): T => ({} as T),
+        query: <T>(_fn: unknown, _input: unknown, _output: unknown): T => ({}) as T,
+        queryOptional: <T>(_fn: unknown, _input: unknown, _output: unknown): T => ({}) as T,
       });
       return {
         then: <U>(acts: U): U => acts,

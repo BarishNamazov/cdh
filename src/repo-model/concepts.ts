@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { ClassDeclaration, MethodDeclaration, Project, SyntaxKind } from "ts-morph";
-import { type CdhConfig } from "../config.ts";
-import { type RepoContract } from "../repo-contract.ts";
-import { walk, siblingIfExists } from "../utils/fs.ts";
+import { type ClassDeclaration, type MethodDeclaration, Project, SyntaxKind } from "ts-morph";
+import type { CdhConfig } from "../config.ts";
+import type { RepoContract } from "../repo-contract.ts";
+import { siblingIfExists, walk } from "../utils/fs.ts";
 
 export interface ConceptMethod {
   name: string;
@@ -20,7 +20,11 @@ export interface ConceptModel {
   testPath?: string;
 }
 
-export async function discoverConcepts(cwd: string, config: CdhConfig, contract: RepoContract): Promise<ConceptModel[]> {
+export async function discoverConcepts(
+  cwd: string,
+  config: CdhConfig,
+  contract: RepoContract
+): Promise<ConceptModel[]> {
   const conceptsRoot = path.resolve(cwd, config.paths.concepts);
   if (!existsSync(conceptsRoot)) return [];
 
@@ -66,7 +70,10 @@ function conceptFromClass(
   return { name, file, actions, queries, specPath, testPath };
 }
 
-export function enumerateSurfaceMethods(methods: MethodDeclaration[], helperAllowlist: string[] | Set<string>): ConceptMethod[] {
+export function enumerateSurfaceMethods(
+  methods: MethodDeclaration[],
+  helperAllowlist: string[] | Set<string>
+): ConceptMethod[] {
   const allowSet = helperAllowlist instanceof Set ? helperAllowlist : new Set(helperAllowlist);
   const implementationByName = new Map<string, MethodDeclaration>();
 
@@ -85,8 +92,10 @@ export function enumerateSurfaceMethods(methods: MethodDeclaration[], helperAllo
     .filter(([, method]) => Boolean(method.getBody()))
     .map(([name, method]) => ({
       name,
-      parameters: method.getParameters().map((parameter) => parameter.getTypeNode()?.getText() ?? parameter.getType().getText()),
-      returnType: method.getReturnTypeNode()?.getText() ?? method.getReturnType().getText()
+      parameters: method
+        .getParameters()
+        .map((parameter) => parameter.getTypeNode()?.getText() ?? parameter.getType().getText()),
+      returnType: method.getReturnTypeNode()?.getText() ?? method.getReturnType().getText(),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -1,8 +1,8 @@
 import path from "node:path";
-import { discoverSyncs, type SyncModel } from "../repo-model/syncs.ts";
-import { discoverConcepts } from "../repo-model/concepts.ts";
 import type { CdhConfig } from "../config.ts";
 import type { RepoContract } from "../repo-contract.ts";
+import { discoverConcepts } from "../repo-model/concepts.ts";
+import { discoverSyncs } from "../repo-model/syncs.ts";
 
 export interface SyncGraphNode {
   id: string;
@@ -22,11 +22,7 @@ export interface SyncGraph {
   edges: SyncGraphEdge[];
 }
 
-export async function buildSyncGraph(
-  cwd: string,
-  config: CdhConfig,
-  contract: RepoContract
-): Promise<SyncGraph> {
+export async function buildSyncGraph(cwd: string, config: CdhConfig, contract: RepoContract): Promise<SyncGraph> {
   const syncs = await discoverSyncs(cwd, config);
   const concepts = await discoverConcepts(cwd, config, contract);
 

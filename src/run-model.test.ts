@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  generateRunId,
-  getOrCreateRunId,
-  joinParentRun,
-  setRunEnv,
-  computeChangedScope
-} from "./run-model.ts";
+import { computeChangedScope, generateRunId, getOrCreateRunId, joinParentRun, setRunEnv } from "./run-model.ts";
 
 describe("generateRunId", () => {
   test("returns a string matching the run-YYYYMMDD-HHMMSS-xxxx pattern", () => {
@@ -62,11 +56,7 @@ describe("setRunEnv", () => {
   });
 
   test("overwrites existing CDH_RUN_ID and CDH_RUN_DIR", () => {
-    const env = setRunEnv(
-      { CDH_RUN_ID: "old", CDH_RUN_DIR: "/old" },
-      "new-id",
-      "/new-dir"
-    );
+    const env = setRunEnv({ CDH_RUN_ID: "old", CDH_RUN_DIR: "/old" }, "new-id", "/new-dir");
     expect(env.CDH_RUN_ID).toBe("new-id");
     expect(env.CDH_RUN_DIR).toBe("/new-dir");
   });
@@ -80,16 +70,14 @@ describe("computeChangedScope", () => {
     const scope = computeChangedScope(conceptsRoot, syncsRoot, [
       "/app/src/concepts/Labeling/LabelingConcept.ts",
       "/app/src/concepts/Labeling/LabelingConcept.test.ts",
-      "/app/src/concepts/Requesting/RequestingConcept.ts"
+      "/app/src/concepts/Requesting/RequestingConcept.ts",
     ]);
     expect(scope.concepts.sort()).toEqual(["Labeling", "Requesting"]);
     expect(scope.syncs).toEqual([]);
   });
 
   test("identifies changed syncs from touched files", () => {
-    const scope = computeChangedScope(conceptsRoot, syncsRoot, [
-      "/app/src/syncs/approval-workflow.ts"
-    ]);
+    const scope = computeChangedScope(conceptsRoot, syncsRoot, ["/app/src/syncs/approval-workflow.ts"]);
     expect(scope.concepts).toEqual([]);
     expect(scope.syncs).toEqual(["approval-workflow.ts"]);
   });
@@ -98,7 +86,7 @@ describe("computeChangedScope", () => {
     const scope = computeChangedScope(conceptsRoot, syncsRoot, [
       "/app/src/concepts/Auth/AuthConcept.ts",
       "/app/src/syncs/login-flow.ts",
-      "/app/src/syncs/logout-flow.ts"
+      "/app/src/syncs/logout-flow.ts",
     ]);
     expect(scope.concepts).toEqual(["Auth"]);
     expect(scope.syncs.sort()).toEqual(["login-flow.ts", "logout-flow.ts"]);
@@ -108,16 +96,13 @@ describe("computeChangedScope", () => {
     const scope = computeChangedScope(conceptsRoot, syncsRoot, [
       "/app/src/concepts/Labeling/LabelingConcept.ts",
       "/app/src/concepts/Labeling/LabelingConcept.test.ts",
-      "/app/src/concepts/Labeling/helpers.ts"
+      "/app/src/concepts/Labeling/helpers.ts",
     ]);
     expect(scope.concepts).toEqual(["Labeling"]);
   });
 
   test("returns empty arrays for no matches", () => {
-    const scope = computeChangedScope(conceptsRoot, syncsRoot, [
-      "/app/src/utils/helpers.ts",
-      "/app/src/app.ts"
-    ]);
+    const scope = computeChangedScope(conceptsRoot, syncsRoot, ["/app/src/utils/helpers.ts", "/app/src/app.ts"]);
     expect(scope.concepts).toEqual([]);
     expect(scope.syncs).toEqual([]);
   });
@@ -136,9 +121,7 @@ describe("computeChangedScope", () => {
   });
 
   test("treats files at conceptsRoot with no subdirectory as a concept name", () => {
-    const scope = computeChangedScope(conceptsRoot, syncsRoot, [
-      "/app/src/concepts/README.md"
-    ]);
+    const scope = computeChangedScope(conceptsRoot, syncsRoot, ["/app/src/concepts/README.md"]);
     expect(scope.concepts).toEqual(["README.md"]);
     expect(scope.syncs).toEqual([]);
   });

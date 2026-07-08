@@ -8,6 +8,6 @@ export function setupSyncTest() {
     calls,
     emit(action: string) {
       calls.push(action);
-    }
+    },
   };
 }

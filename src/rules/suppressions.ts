@@ -1,5 +1,5 @@
-import type { RuleHit } from "./types.ts";
 import type { SourceFile } from "ts-morph";
+import type { RuleHit } from "./types.ts";
 
 export interface Suppression {
   rule: string;
@@ -9,10 +9,7 @@ export interface Suppression {
   methodName?: string;
 }
 
-export function scanSuppressions(
-  sourceFile: SourceFile,
-  forRule: string
-): Suppression[] {
+export function scanSuppressions(sourceFile: SourceFile, forRule: string): Suppression[] {
   const fullText = sourceFile.getFullText();
   const lines = fullText.split("\n");
   const suppressions: Suppression[] = [];
@@ -36,10 +33,8 @@ export function scanSuppressions(
     }
 
     if (rule === "R10") {
-      const isFileLevel = i < 5 && !lines.slice(0, i).every((l) => l.trim() === "");
-      const firstFiveNonBlank = lines
-        .slice(0, 5)
-        .filter((l) => l.trim() !== "");
+      const _isFileLevel = i < 5 && !lines.slice(0, i).every((l) => l.trim() === "");
+      const firstFiveNonBlank = lines.slice(0, 5).filter((l) => l.trim() !== "");
 
       if (firstFiveNonBlank.includes(line)) {
         suppressions.push({ rule, reason, type: "file" });
@@ -58,12 +53,7 @@ function isConstructLevelRule(rule: string): boolean {
   return rule === "R2" || rule === "R3" || rule === "R4";
 }
 
-function findNextConstruct(
-  _sourceFile: SourceFile,
-  _line: string,
-  lineIndex: number,
-  lines: string[]
-): string | null {
+function findNextConstruct(_sourceFile: SourceFile, _line: string, lineIndex: number, lines: string[]): string | null {
   for (let j = lineIndex + 1; j < lines.length; j++) {
     const nextLine = (lines[j] ?? "").trim();
     if (nextLine === "" || nextLine.startsWith("//")) continue;
@@ -79,10 +69,7 @@ function findNextConstruct(
   return null;
 }
 
-export function applySuppressions(
-  hits: RuleHit[],
-  suppressions: Suppression[]
-): RuleHit[] {
+export function applySuppressions(hits: RuleHit[], suppressions: Suppression[]): RuleHit[] {
   return hits.map((hit) => {
     if (!isSuppressibleRule(hit.rule)) return hit;
 
@@ -102,7 +89,7 @@ export function applySuppressions(
       return {
         ...hit,
         severity: "warn",
-        suppressed: { reason: relevantSuppression.reason }
+        suppressed: { reason: relevantSuppression.reason },
       };
     }
 
@@ -110,10 +97,7 @@ export function applySuppressions(
   });
 }
 
-function checkUnusedSuppressions(
-  suppressions: Suppression[],
-  hits: RuleHit[]
-): Omit<RuleHit, "suppressed">[] {
+function _checkUnusedSuppressions(suppressions: Suppression[], hits: RuleHit[]): Omit<RuleHit, "suppressed">[] {
   const warnings: Omit<RuleHit, "suppressed">[] = [];
 
   for (const suppression of suppressions) {
@@ -127,7 +111,7 @@ function checkUnusedSuppressions(
         rule: suppression.rule,
         severity: "warn",
         path: "",
-        message: `Unused cdh-ignore ${suppression.rule}: no matching hit found for '${suppression.reason}'. Remove or fix the suppression comment.`
+        message: `Unused cdh-ignore ${suppression.rule}: no matching hit found for '${suppression.reason}'. Remove or fix the suppression comment.`,
       });
     }
   }

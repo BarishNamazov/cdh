@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { CdhConfig } from "./config.ts";
 import type { RepoContract } from "./repo-contract.ts";
@@ -49,9 +49,7 @@ export function copyCatalogConcept(
     if (!existsSync(sourcePath)) continue;
 
     if (file.endsWith("Concept.ts") || file.endsWith(".test.ts")) {
-      const targetName = options.as
-        ? file.replace(new RegExp(entry.name, "g"), conceptName)
-        : file;
+      const targetName = options.as ? file.replace(new RegExp(entry.name, "g"), conceptName) : file;
       const targetPath = path.join(targetConceptDir, targetName);
       copyAndRename(sourcePath, targetPath, entry.name, conceptName, entry.id, entry.version);
       copiedFiles.push(path.relative(targetCwd, targetPath));
@@ -74,7 +72,7 @@ export function copyCatalogConcept(
     as: options.as,
     files: copiedFiles,
     conceptName,
-    targetDir: path.relative(targetCwd, targetConceptDir)
+    targetDir: path.relative(targetCwd, targetConceptDir),
   };
 }
 

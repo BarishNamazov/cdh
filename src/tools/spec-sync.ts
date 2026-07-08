@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { discoverConcepts } from "../repo-model/concepts.ts";
 import type { CdhConfig } from "../config.ts";
 import type { RepoContract } from "../repo-contract.ts";
+import { discoverConcepts } from "../repo-model/concepts.ts";
 
 export interface SpecDiff {
   conceptName: string;
@@ -81,20 +81,20 @@ export async function checkSpecSync(
     actionsInCode,
     queriesInCode,
     actionsInSpec,
-    queriesInSpec
+    queriesInSpec,
   };
 }
 
 function extractSectionItems(content: string, sectionName: string): string[] {
   const regex = new RegExp(`## ${sectionName}([\\s\\S]*?)(?=\\n## (?!##)|$)`, "i");
   const match = content.match(regex);
-  if (!match || !match[1]) return [];
+  if (!match?.[1]) return [];
 
   const sectionContent = match[1];
   const items: string[] = [];
 
   const methodRegex = /###\s+(\w+)/g;
-  let m;
+  let m: RegExpExecArray | null;
   while ((m = methodRegex.exec(sectionContent)) !== null) {
     if (m[1]) items.push(m[1]);
   }
@@ -155,9 +155,7 @@ export async function autoSyncSpec(
   const actionsSectionEnd = findNextSectionStart(specContent, actionsSectionStart);
 
   if (actionsSectionStart > 0) {
-    const newActions = concept.actions
-      .map((a) => `### ${a.name}\n\nRequires: ...\n\nEffects: ...`)
-      .join("\n\n");
+    const newActions = concept.actions.map((a) => `### ${a.name}\n\nRequires: ...\n\nEffects: ...`).join("\n\n");
 
     specContent =
       specContent.slice(0, actionsSectionStart) +
@@ -169,9 +167,7 @@ export async function autoSyncSpec(
   const queriesSectionEnd = findNextSectionStart(specContent, queriesSectionStart);
 
   if (queriesSectionStart > 0) {
-    const newQueries = concept.queries
-      .map((q) => `### ${q.name}\n\nReturns ...`)
-      .join("\n\n");
+    const newQueries = concept.queries.map((q) => `### ${q.name}\n\nReturns ...`).join("\n\n");
 
     specContent =
       specContent.slice(0, queriesSectionStart) +
@@ -189,7 +185,7 @@ export async function autoSyncSpec(
 function findSectionStart(content: string, heading: string): number {
   const regex = new RegExp(`\\n${heading}`, "i");
   const match = content.match(regex);
-  return match ? match.index ?? -1 : -1;
+  return match ? (match.index ?? -1) : -1;
 }
 
 function findNextSectionStart(content: string, afterIndex: number): number {

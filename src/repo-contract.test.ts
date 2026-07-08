@@ -1,5 +1,5 @@
-import path from "node:path";
 import { describe, expect, test } from "bun:test";
+import path from "node:path";
 import { defaultConfig } from "./config.ts";
 import { assertRepoContractFiles, loadRepoContract, resolveRepoPath } from "./repo-contract.ts";
 

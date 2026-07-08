@@ -1,10 +1,10 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-import path from "node:path";
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import path from "node:path";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { loadConfig } from "../src/config.ts";
 import { Journal } from "../src/journal/journal.ts";
 
@@ -23,46 +23,88 @@ const AGENTS: Record<string, AgentSpec> = {
     system:
       "Write concept specification documents following CDH conventions. " +
       "Output a markdown spec at design/concepts/<lowercase-name>.md with sections: " +
-      "Purpose, Principle, State, Actions, Queries, Requires, Effects, Errors."
+      "Purpose, Principle, State, Actions, Queries, Requires, Effects, Errors.",
   },
   "concept-implementer": {
     label: "Concept Implementer",
-    tools: ["read", "write", "edit", "bash", "describe_concept", "list_concepts", "read_design_doc", "run_verification", "record_decision"],
+    tools: [
+      "read",
+      "write",
+      "edit",
+      "bash",
+      "describe_concept",
+      "list_concepts",
+      "read_design_doc",
+      "run_verification",
+      "record_decision",
+    ],
     system:
       "Implement concept classes from specifications. Create src/concepts/<Name>/<Name>Concept.ts. " +
       "Default export a class. Actions accept single-object params, return objects. " +
-      "Queries start with _. No cross-concept imports. Write colocated tests."
+      "Queries start with _. No cross-concept imports. Write colocated tests.",
   },
   "sync-implementer": {
     label: "Sync Implementer",
-    tools: ["read", "write", "edit", "bash", "trace_sync", "sync_graph", "list_syncs", "sync_diagnostics", "read_design_doc", "run_verification", "record_decision"],
+    tools: [
+      "read",
+      "write",
+      "edit",
+      "bash",
+      "trace_sync",
+      "sync_graph",
+      "list_syncs",
+      "sync_diagnostics",
+      "read_design_doc",
+      "run_verification",
+      "record_decision",
+    ],
     system:
       "Implement synchronizations between concepts using the sync-engine DSL. " +
       "Trace before and after. Use when(), act(), where(), branch(on(...), onError(...)). " +
-      "Export const declarations. Write sibling test files with positive and negative cases."
+      "Export const declarations. Write sibling test files with positive and negative cases.",
   },
   "test-writer": {
     label: "Test Writer",
     tools: ["read", "write", "edit", "bash", "describe_concept", "list_syncs", "read_design_doc"],
     system:
       "Write tests for concepts and syncs. For concepts: use setupTestDb, trace, testAction, expectError. " +
-      "For syncs: use setupSyncTest with positive and negative cases. Tests must have trace() narration."
+      "For syncs: use setupSyncTest with positive and negative cases. Tests must have trace() narration.",
   },
-  "reviewer": {
+  reviewer: {
     label: "Reviewer",
-    tools: ["read", "list_concepts", "list_syncs", "trace_sync", "sync_graph", "sync_diagnostics", "read_design_doc", "run_verification"],
+    tools: [
+      "read",
+      "list_concepts",
+      "list_syncs",
+      "trace_sync",
+      "sync_graph",
+      "sync_diagnostics",
+      "read_design_doc",
+      "run_verification",
+    ],
     system:
       "Review changes for CDH rule compliance. Do NOT edit, write, or execute commands. " +
       "Check: R1 (no cross-imports), R2 (tests colocated), R6 (specs exist), " +
-      "R9 (sync test shape), R10 (trace narration). Output verdict: APPROVED / NEEDS WORK / REJECTED."
+      "R9 (sync test shape), R10 (trace narration). Output verdict: APPROVED / NEEDS WORK / REJECTED.",
   },
-  "scout": {
+  scout: {
     label: "Scout",
-    tools: ["read", "list_concepts", "describe_concept", "list_syncs", "trace_sync", "sync_graph", "sync_diagnostics", "read_design_doc", "catalog_search", "catalog_show"],
+    tools: [
+      "read",
+      "list_concepts",
+      "describe_concept",
+      "list_syncs",
+      "trace_sync",
+      "sync_graph",
+      "sync_diagnostics",
+      "read_design_doc",
+      "catalog_search",
+      "catalog_show",
+    ],
     system:
       "Explore the codebase and report findings. Read-only — do NOT edit, write, delete, or execute commands. " +
-      "Report concept surfaces, sync relationships, gaps, and architectural patterns."
-  }
+      "Report concept surfaces, sync relationships, gaps, and architectural patterns.",
+  },
 };
 
 // ----- Types -----
@@ -100,11 +142,13 @@ interface OrchestratorDetails {
 const CONCURRENCY_LIMIT = 4;
 
 function resolveAgent(name: string): AgentSpec {
-  return AGENTS[name] ?? {
-    label: name,
-    tools: ["read", "write", "edit", "bash"],
-    system: `You are the ${name} agent. Complete the task and report your result.`
-  };
+  return (
+    AGENTS[name] ?? {
+      label: name,
+      tools: ["read", "write", "edit", "bash"],
+      system: `You are the ${name} agent. Complete the task and report your result.`,
+    }
+  );
 }
 
 function zeroUsage(): UsageStats {
@@ -113,7 +157,8 @@ function zeroUsage(): UsageStats {
 
 function getFinalOutput(messages: Record<string, unknown>[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i]!;
+    const msg = messages[i];
+    if (!msg) continue;
     if ((msg as { role?: string }).role === "assistant") {
       for (const part of (msg as { content?: { type: string; text: string }[] }).content ?? []) {
         if (part.type === "text") return part.text;
@@ -162,7 +207,7 @@ async function runSingleAgent(
     messages: [],
     stderr: "",
     usage: zeroUsage(),
-    step
+    step,
   };
 
   let wasAborted = false;
@@ -171,7 +216,7 @@ async function runSingleAgent(
     const proc = spawn("pi", args, {
       cwd: defaultCwd,
       shell: false,
-      stdio: ["ignore", "pipe", "pipe"]
+      stdio: ["ignore", "pipe", "pipe"],
     });
     let buffer = "";
 
@@ -190,7 +235,18 @@ async function runSingleAgent(
 
         if ((msg as { role?: string }).role === "assistant") {
           result.usage.turns++;
-          const usage = (msg as { usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number }; totalTokens?: number; } }).usage;
+          const usage = (
+            msg as {
+              usage?: {
+                input?: number;
+                output?: number;
+                cacheRead?: number;
+                cacheWrite?: number;
+                cost?: { total?: number };
+                totalTokens?: number;
+              };
+            }
+          ).usage;
           if (usage) {
             result.usage.input += usage.input || 0;
             result.usage.output += usage.output || 0;
@@ -216,14 +272,14 @@ async function runSingleAgent(
       }
     };
 
-    proc.stdout!.on("data", (data: Buffer) => {
+    proc.stdout?.on("data", (data: Buffer) => {
       buffer += data.toString();
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
       for (const line of lines) processLine(line);
     });
 
-    proc.stderr!.on("data", (data: Buffer) => {
+    proc.stderr?.on("data", (data: Buffer) => {
       result.stderr += data.toString();
     });
 
@@ -258,7 +314,9 @@ async function runSingleAgent(
   try {
     await unlink(promptPath);
     await rm(promptDir, { recursive: true, force: true });
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   return result;
 }
@@ -279,7 +337,9 @@ async function mapWithConcurrencyLimit<TIn, TOut>(
     while (true) {
       const current = nextIndex++;
       if (current >= items.length) return;
-      results[current] = await fn(items[current]!, current);
+      const item = items[current];
+      if (!item) return;
+      results[current] = await fn(item, current);
     }
   });
 
@@ -302,17 +362,13 @@ async function runParallel(
 
 // ----- Chain execution -----
 
-async function runChain(
-  cwd: string,
-  tasks: string[],
-  agent: AgentSpec,
-  signal?: AbortSignal
-): Promise<AgentResult[]> {
+async function runChain(cwd: string, tasks: string[], agent: AgentSpec, signal?: AbortSignal): Promise<AgentResult[]> {
   const results: AgentResult[] = [];
   let previousOutput = "";
 
   for (let i = 0; i < tasks.length; i++) {
-    const rawTask = tasks[i]!;
+    const rawTask = tasks[i];
+    if (!rawTask) continue;
     const task = rawTask.replace(/\{previous\}/g, previousOutput);
 
     const result = await runSingleAgent(cwd, agent.label, task, i + 1, signal);
@@ -341,7 +397,9 @@ export default function orchestrator(pi: ExtensionAPI): void {
     parameters: Type.Object({
       mode: Type.Union([Type.Literal("single"), Type.Literal("chain"), Type.Literal("parallel")]),
       tasks: Type.Array(Type.String(), { description: "Task descriptions, one per agent or step" }),
-      agent: Type.String({ description: "Agent name: spec-writer, concept-implementer, sync-implementer, test-writer, reviewer, scout" }),
+      agent: Type.String({
+        description: "Agent name: spec-writer, concept-implementer, sync-implementer, test-writer, reviewer, scout",
+      }),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const cwd = ctx.cwd ?? process.cwd();
@@ -371,34 +429,33 @@ export default function orchestrator(pi: ExtensionAPI): void {
       }
 
       for (let i = 0; i < results.length; i++) {
-        const result = results[i]!;
+        const result = results[i];
+        if (!result) continue;
         const agentStepDir = path.join(orchestratorDir, `agent-${i}`);
         mkdirSync(agentStepDir, { recursive: true });
 
         journal.emit("agent_spawned", {
           agent: result.agent,
           task: result.task.slice(0, 200),
-          childSessionFile: agentStepDir
+          childSessionFile: agentStepDir,
         });
 
         journal.emit("agent_finished", {
           agent: result.agent,
           ok: result.exitCode === 0,
-          usage: result.usage
+          usage: result.usage,
         });
       }
 
       const detail: OrchestratorDetails = {
         mode: params.mode,
-        results
+        results,
       };
 
       const lines: string[] = [`Orchestration complete (${params.mode}):`, ""];
 
       for (const result of results) {
-        const status = isFailed(result)
-          ? `FAIL${result.stopReason ? ` (${result.stopReason})` : ""}`
-          : "OK";
+        const status = isFailed(result) ? `FAIL${result.stopReason ? ` (${result.stopReason})` : ""}` : "OK";
         lines.push(`[${status}] ${result.agent}: ${result.task.slice(0, 120)}`);
 
         const output = getFinalOutput(result.messages);
@@ -413,15 +470,15 @@ export default function orchestrator(pi: ExtensionAPI): void {
       return {
         content: [{ type: "text", text: lines.join("\n") }],
         details: detail,
-        isError: !allPassed
+        isError: !allPassed,
       };
-    }
+    },
   });
 
   pi.registerCommand("orchestrate", {
     description: "Orchestrate subagents: /orchestrate single|chain|parallel <agent> <tasks...>",
     handler: async (_args, ctx) => {
       ctx.ui.setStatus("cdh-orchestrate", "Orchestration command ready");
-    }
+    },
   });
 }

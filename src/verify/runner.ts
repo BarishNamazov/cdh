@@ -1,7 +1,7 @@
 import type { CdhConfig } from "../config.ts";
+import type { Journal } from "../journal/journal.ts";
 import type { RepoContract } from "../repo-contract.ts";
 import type { RuleEngine } from "../rules/types.ts";
-import type { Journal } from "../journal/journal.ts";
 import {
   journalHealthStage,
   legibilityStage,
@@ -9,9 +9,9 @@ import {
   surfaceCoverageStage,
   syncDiagnosticsStage,
   testStage,
-  typecheckStage
+  typecheckStage,
 } from "./stages.ts";
-import { type StageContext, type StageFn, type StageResult } from "./types.ts";
+import type { StageContext, StageFn, StageResult } from "./types.ts";
 
 export interface RunVerificationOptions {
   cwd: string;
@@ -56,25 +56,17 @@ export async function runVerification(options: RunVerificationOptions): Promise<
         stage: name,
         status: "fail",
         durationMs: 0,
-        summary: `Stage threw: ${error instanceof Error ? error.message : String(error)}`
+        summary: `Stage threw: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
 
-    journal.emitVerificationStage(
-      result.stage,
-      result.status,
-      result.durationMs,
-      result.summary,
-      result.detailPath
-    );
+    journal.emitVerificationStage(result.stage, result.status, result.durationMs, result.summary, result.detailPath);
 
     results.push(result);
   }
 
   const ok = results.every((r) => r.status === "pass" || r.status === "skip");
-  const failures = results
-    .filter((r) => r.status === "fail")
-    .map((r) => r.stage);
+  const failures = results.filter((r) => r.status === "fail").map((r) => r.stage);
 
   journal.emitVerificationFinished(tier, ok, failures);
 

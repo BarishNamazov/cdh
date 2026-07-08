@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { type CdhConfig } from "../config.ts";
-import { generateRunId, getOrCreateRunId, joinParentRun } from "../run-model.ts";
-import { type CdhEvent, type JournalEntry } from "./types.ts";
+import type { CdhConfig } from "../config.ts";
+import { generateRunId, joinParentRun } from "../run-model.ts";
+import type { CdhEvent, JournalEntry } from "./types.ts";
 import { JsonlWriter } from "./writer.ts";
 
 export class Journal {
@@ -12,18 +12,21 @@ export class Journal {
   private events: JournalEntry[] = [];
   private runDir: string | null = null;
 
-  constructor(private readonly cwd: string, private readonly config: CdhConfig) {}
+  constructor(
+    private readonly cwd: string,
+    private readonly config: CdhConfig
+  ) {}
 
   initRun(env: Record<string, string | undefined>, taskPrompt?: string): void {
     if (joinParentRun(env)) {
-      this.runId = env["CDH_RUN_ID"] ?? null;
-      this.runDir = env["CDH_RUN_DIR"] ?? null;
+      this.runId = env.CDH_RUN_ID ?? null;
+      this.runDir = env.CDH_RUN_DIR ?? null;
     } else {
       this.runId = generateRunId();
       this.runDir = path.join(this.cwd, this.config.paths.journal, "runs", this.runId);
       mkdirSync(this.runDir, { recursive: true });
-      env["CDH_RUN_ID"] = this.runId;
-      env["CDH_RUN_DIR"] = this.runDir;
+      env.CDH_RUN_ID = this.runId;
+      env.CDH_RUN_DIR = this.runDir;
     }
 
     if (this.runDir) {
@@ -44,7 +47,7 @@ export class Journal {
       runId: this.runId ?? "unknown",
       seq: this.writer?.getSequence() ?? this.events.length,
       ts: new Date().toISOString(),
-      event
+      event,
     };
 
     this.events.push(entry);
@@ -111,16 +114,14 @@ export class Journal {
   }
 
   generateReport(taskPrompt: string): string {
-    const reportPath = this.runDir
-      ? path.join(this.runDir, "report.md")
-      : null;
+    const reportPath = this.runDir ? path.join(this.runDir, "report.md") : null;
 
     const events = this.events;
     const verifications = events.filter((e) => e.event.type === "verification_stage");
     const decisions = events.filter((e) => e.event.type === "decision");
     const warnings = events.filter((e) => e.event.type === "rule_warning");
     const suppressions = events.filter((e) => e.event.type === "suppression");
-    const blocks = events.filter((e) => e.event.type === "gate_blocked");
+    const _blocks = events.filter((e) => e.event.type === "gate_blocked");
 
     const allPassed = verifications.every((e) => {
       const ev = e.event as Extract<CdhEvent, { type: "verification_stage" }>;
@@ -170,18 +171,24 @@ export class Journal {
       "## Follow-Ups",
       "",
       warnings.length > 0
-        ? ["Unresolved warnings:", ...warnings.map((e) => {
-            const d = (e.event as Extract<CdhEvent, { type: "rule_warning" }>).data;
-            return `- ${d.rule}: ${d.path} - ${d.detail}`;
-          })]
+        ? [
+            "Unresolved warnings:",
+            ...warnings.map((e) => {
+              const d = (e.event as Extract<CdhEvent, { type: "rule_warning" }>).data;
+              return `- ${d.rule}: ${d.path} - ${d.detail}`;
+            }),
+          ]
         : ["No unresolved warnings."],
       "",
       suppressions.length > 0
-        ? ["Suppressions:", ...suppressions.map((e) => {
-            const d = (e.event as Extract<CdhEvent, { type: "suppression" }>).data;
-            return `- ${d.rule}: ${d.path} - ${d.reason}`;
-          })]
-        : []
+        ? [
+            "Suppressions:",
+            ...suppressions.map((e) => {
+              const d = (e.event as Extract<CdhEvent, { type: "suppression" }>).data;
+              return `- ${d.rule}: ${d.path} - ${d.reason}`;
+            }),
+          ]
+        : [],
     ]
       .flat()
       .join("\n");
@@ -195,12 +202,7 @@ export class Journal {
   }
 }
 
-function appendReportIndex(
-  cwd: string,
-  config: CdhConfig,
-  runId: string,
-  taskPrompt: string
-): void {
+function appendReportIndex(cwd: string, config: CdhConfig, runId: string, taskPrompt: string): void {
   const indexPath = path.join(cwd, config.paths.journal, "INDEX.md");
   const firstLine = taskPrompt.split("\n")[0]?.slice(0, 80) || "task";
   const indexDir = path.dirname(indexPath);

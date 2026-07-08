@@ -1,10 +1,9 @@
-import { appendFileSync, existsSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 export class JsonlWriter {
   private degraded = false;
   private seq = 0;
-  private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly filePath: string) {
     const dir = path.dirname(filePath);
@@ -38,7 +37,7 @@ export class JsonlWriter {
       seq: this.seq + 1,
       ts: new Date().toISOString(),
       type: eventType,
-      ...data
+      ...data,
     };
 
     try {

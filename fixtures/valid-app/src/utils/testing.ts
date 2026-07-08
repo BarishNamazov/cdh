@@ -1,6 +1,6 @@
-import { appendFileSync } from "node:fs";
-import { AsyncLocalStorage } from "node:async_hooks";
 import { expect, test } from "bun:test";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { appendFileSync } from "node:fs";
 import type { LabelingState } from "../concepts/Labeling/LabelingConcept.ts";
 
 interface TrackOptions {
@@ -47,7 +47,7 @@ export function track<T extends object>(instance: T, options: TrackOptions = {})
         record({ kind: "method", concept, method: property });
         return Reflect.apply(value, target, args);
       };
-    }
+    },
   });
 }
 
@@ -57,7 +57,7 @@ export function setupSyncTest(): { calls: string[]; emit: (action: string) => vo
     calls,
     emit(action: string) {
       calls.push(action);
-    }
+    },
   };
 }
 
@@ -72,7 +72,7 @@ function record(input: { kind: "method" | "errorAssertion"; concept?: string; me
     method: input.method,
     testName: active?.testName,
     actionUnderTest: active?.actionUnderTest,
-    ts: new Date().toISOString()
+    ts: new Date().toISOString(),
   });
   appendFileSync(out, `${line}\n`, "utf8");
 }

@@ -1,7 +1,7 @@
+import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, test } from "bun:test";
 import { deepMerge, defaultConfig, loadConfig } from "./config.ts";
 
 describe("loadConfig", () => {
@@ -38,7 +38,7 @@ describe("deepMerge", () => {
 
     expect(merged).toEqual({
       a: ["y"],
-      b: { c: 1, d: 2 }
+      b: { c: 1, d: 2 },
     });
   });
 });

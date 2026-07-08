@@ -1,14 +1,8 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import {
-  Project,
-  SyntaxKind,
-  Node,
-  type CallExpression,
-  type SourceFile
-} from "ts-morph";
-import { type CdhConfig } from "../config.ts";
-import { walkLimited, siblingIfExists } from "../utils/fs.ts";
+import { type CallExpression, Node, Project, SyntaxKind } from "ts-morph";
+import type { CdhConfig } from "../config.ts";
+import { siblingIfExists, walkLimited } from "../utils/fs.ts";
 
 export interface SyncModel {
   file: string;
@@ -77,9 +71,7 @@ export async function discoverSyncs(cwd: string, config: CdhConfig): Promise<Syn
   const syncsRoot = path.resolve(cwd, config.paths.syncs);
   if (!existsSync(syncsRoot)) return [];
 
-  const files = (await walkLimited(syncsRoot)).filter(
-    (f) => f.endsWith(".sync.ts") && !f.endsWith(".test.ts")
-  );
+  const files = (await walkLimited(syncsRoot)).filter((f) => f.endsWith(".sync.ts") && !f.endsWith(".test.ts"));
 
   const results: SyncModel[] = [];
 
@@ -97,7 +89,8 @@ function syncFromFile(project: Project, file: string): SyncModel | null {
   const sourceFile = project.addSourceFileAtPathIfExists(file);
   if (!sourceFile) return null;
 
-  const exportNames = sourceFile.getVariableDeclarations()
+  const exportNames = sourceFile
+    .getVariableDeclarations()
     .filter((v) => v.isExported())
     .map((v) => v.getName());
 
@@ -146,7 +139,7 @@ function syncFromFile(project: Project, file: string): SyncModel | null {
     if (name === "defineEndpoint" && args.length > 0) {
       const firstArg = args[0];
       if (Node.isStringLiteral(firstArg!)) {
-        endpointPaths.add(firstArg!.getLiteralText());
+        endpointPaths.add(firstArg?.getLiteralText());
       }
     }
 
@@ -166,6 +159,6 @@ function syncFromFile(project: Project, file: string): SyncModel | null {
     endpointPaths: [...endpointPaths].sort(),
     hasWhere,
     hasBranches,
-    testPath
+    testPath,
   };
 }

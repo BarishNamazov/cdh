@@ -1,5 +1,5 @@
-import path from "node:path";
 import { describe, expect, test } from "bun:test";
+import path from "node:path";
 import { defaultConfig } from "../config.ts";
 import { loadRepoContract } from "../repo-contract.ts";
 import { createRuleEngine } from "./rule-engine.ts";
@@ -41,7 +41,10 @@ describe("RuleEngine R1", () => {
     const engine = createRuleEngine(validApp, defaultConfig, contract);
     const file = path.join(validApp, "src", "concepts", "Labeling", "LabelingConcept.ts");
 
-    const hits = engine.checkContent(file, `import Other from "../Other/OtherConcept.ts";\nexport default class LabelingConcept {}`);
+    const hits = engine.checkContent(
+      file,
+      `import Other from "../Other/OtherConcept.ts";\nexport default class LabelingConcept {}`
+    );
 
     expect(hits.map((h) => h.rule)).toContain("R1");
   });

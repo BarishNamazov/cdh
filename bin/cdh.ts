@@ -2,26 +2,31 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
+import type { CdhConfig } from "../src/config.ts";
 import { loadConfig } from "../src/config.ts";
-import { loadRepoContract } from "../src/repo-contract.ts";
 import { Journal } from "../src/journal/journal.ts";
-import { createRuleEngine } from "../src/rules/rule-engine.ts";
-import { runVerification } from "../src/verify/runner.ts";
-import { formatStageResults } from "../src/verify/format.ts";
-import { traceSyncAction, formatTraceResult } from "../src/tools/trace-sync.ts";
-import { listSyncs, formatSyncs } from "../src/tools/list-syncs.ts";
-import { listConcepts, formatConcepts } from "../src/tools/list-concepts.ts";
-import { describeConcept, formatConceptDetail } from "../src/tools/describe-concept.ts";
-import { checkSpecSync, formatSpecDiff, autoSyncSpec } from "../src/tools/spec-sync.ts";
-import { readDesignDoc, formatDesignDoc } from "../src/tools/design-doc.ts";
-import { buildSyncGraph, formatGraphReport, formatGraphJson, formatGraphMermaid, formatGraphDot } from "../src/tools/sync-graph.ts";
-import { runSyncDiagnostics, formatDiagnostics, formatDiagnosticsJson } from "../src/tools/sync-diagnostics.ts";
-import { captureSnapshot, computeTouched, runShipPreflight } from "../src/ship/index.ts";
-import { commitShip, createShipBranch } from "../src/ship/git-mutation.ts";
-import { pushBranch, createPullRequest } from "../src/ship/git-mutation.ts";
+import { loadRepoContract } from "../src/repo-contract.ts";
 import { discoverConcepts } from "../src/repo-model/concepts.ts";
 import { discoverSyncs } from "../src/repo-model/syncs.ts";
-import type { CdhConfig } from "../src/config.ts";
+import { createRuleEngine } from "../src/rules/rule-engine.ts";
+import { commitShip, createPullRequest, createShipBranch, pushBranch } from "../src/ship/git-mutation.ts";
+import { captureSnapshot, computeTouched, runShipPreflight } from "../src/ship/index.ts";
+import { describeConcept, formatConceptDetail } from "../src/tools/describe-concept.ts";
+import { formatDesignDoc, readDesignDoc } from "../src/tools/design-doc.ts";
+import { formatConcepts, listConcepts } from "../src/tools/list-concepts.ts";
+import { formatSyncs, listSyncs } from "../src/tools/list-syncs.ts";
+import { autoSyncSpec, checkSpecSync, formatSpecDiff } from "../src/tools/spec-sync.ts";
+import { formatDiagnostics, formatDiagnosticsJson, runSyncDiagnostics } from "../src/tools/sync-diagnostics.ts";
+import {
+  buildSyncGraph,
+  formatGraphDot,
+  formatGraphJson,
+  formatGraphMermaid,
+  formatGraphReport,
+} from "../src/tools/sync-graph.ts";
+import { formatTraceResult, traceSyncAction } from "../src/tools/trace-sync.ts";
+import { formatStageResults } from "../src/verify/format.ts";
+import { runVerification } from "../src/verify/runner.ts";
 
 const [, , command, ...args] = Bun.argv;
 const cwd = process.cwd();
@@ -30,7 +35,10 @@ async function getContract(config: CdhConfig) {
   try {
     return (await loadRepoContract(cwd, config)).contract;
   } catch (err) {
-    console.error("Failed to load repo contract from design/index.json:", err instanceof Error ? err.message : String(err));
+    console.error(
+      "Failed to load repo contract from design/index.json:",
+      err instanceof Error ? err.message : String(err)
+    );
     process.exit(1);
   }
 }
@@ -60,9 +68,7 @@ async function main(): Promise<void> {
 
     case "verify": {
       const tierIndex = args.indexOf("--tier");
-      const tier = tierIndex >= 0 && args[tierIndex + 1]
-        ? (args[tierIndex + 1] as "quick" | "ship")
-        : "quick";
+      const tier = tierIndex >= 0 && args[tierIndex + 1] ? (args[tierIndex + 1] as "quick" | "ship") : "quick";
 
       const contract = await getContract(config);
 
@@ -76,7 +82,7 @@ async function main(): Promise<void> {
         contract,
         ruleEngine: engine,
         journal,
-        tier
+        tier,
       });
 
       console.log(`\nVerification (${tier}):`);
@@ -97,7 +103,7 @@ async function main(): Promise<void> {
 
     case "trace": {
       const actionRef = args[0];
-      if (!actionRef || !actionRef.includes(".")) {
+      if (!actionRef?.includes(".")) {
         console.error("Usage: cdh trace <Concept.action>");
         console.error("Example: cdh trace Labeling.addLabel");
         process.exit(1);
@@ -220,12 +226,16 @@ async function main(): Promise<void> {
     case "doctor": {
       const checks: { name: string; status: "PASS" | "FAIL" | "WARN"; detail: string }[] = [];
 
-      let contract;
+      let contract: Awaited<ReturnType<typeof loadRepoContract>>["contract"] | undefined;
       try {
         contract = (await loadRepoContract(cwd, config)).contract;
         checks.push({ name: "repo-contract", status: "PASS", detail: "design/index.json is valid." });
       } catch (err) {
-        checks.push({ name: "repo-contract", status: "FAIL", detail: err instanceof Error ? err.message : "Invalid contract" });
+        checks.push({
+          name: "repo-contract",
+          status: "FAIL",
+          detail: err instanceof Error ? err.message : "Invalid contract",
+        });
       }
 
       if (contract) {
@@ -233,28 +243,28 @@ async function main(): Promise<void> {
         checks.push({
           name: "concepts-dir",
           status: existsSync(conceptsRoot) ? "PASS" : "FAIL",
-          detail: existsSync(conceptsRoot) ? config.paths.concepts : `${config.paths.concepts} does not exist`
+          detail: existsSync(conceptsRoot) ? config.paths.concepts : `${config.paths.concepts} does not exist`,
         });
 
         const syncsRoot = path.resolve(cwd, config.paths.syncs);
         checks.push({
           name: "syncs-dir",
           status: existsSync(syncsRoot) ? "PASS" : "FAIL",
-          detail: existsSync(syncsRoot) ? config.paths.syncs : `${config.paths.syncs} does not exist`
+          detail: existsSync(syncsRoot) ? config.paths.syncs : `${config.paths.syncs} does not exist`,
         });
 
         const specsDir = path.resolve(cwd, contract.specsDir);
         checks.push({
           name: "specs-dir",
           status: existsSync(specsDir) ? "PASS" : "FAIL",
-          detail: existsSync(specsDir) ? contract.specsDir : `${contract.specsDir} does not exist`
+          detail: existsSync(specsDir) ? contract.specsDir : `${contract.specsDir} does not exist`,
         });
 
         for (const [key, docPath] of Object.entries(contract.docs)) {
           checks.push({
             name: `doc:${key}`,
             status: existsSync(path.resolve(cwd, docPath)) ? "PASS" : "WARN",
-            detail: docPath
+            detail: docPath,
           });
         }
 
@@ -280,7 +290,9 @@ async function main(): Promise<void> {
         checks.push({
           name: "journal-dir",
           status: existsSync(journalDir) ? "PASS" : "WARN",
-          detail: existsSync(journalDir) ? config.paths.journal : `${config.paths.journal} does not exist (created on first run)`
+          detail: existsSync(journalDir)
+            ? config.paths.journal
+            : `${config.paths.journal} does not exist (created on first run)`,
         });
       }
 
@@ -338,8 +350,6 @@ async function main(): Promise<void> {
     }
 
     case "ship": {
-      const noReview = args.includes("--no-review");
-      const noCi = args.includes("--no-ci");
       const confirm = args.includes("--confirm");
 
       console.log("CDH Ship — preflight checks...\n");
@@ -390,7 +400,7 @@ async function main(): Promise<void> {
         contract,
         ruleEngine: engine,
         journal,
-        tier: "ship"
+        tier: "ship",
       });
 
       for (const line of formatStageResults(results)) {
@@ -468,30 +478,32 @@ async function main(): Promise<void> {
     case undefined:
     case "--help":
     case "-h":
-      console.log([
-        "Usage: cdh <command> [options]",
-        "",
-        "Commands:",
-        "  init               Initialize a new concept-design repo",
-        "  doctor             Check harness and repo health",
-        "  rules              Run all rules and report violations",
-        "  verify             Run verification stages (--tier quick|ship)",
-        "  ship               Preflight, verify, and ship changes (--confirm to commit, --no-review --no-ci)",
-        "  trace <C.action>   Show all syncs involving a concept action",
-        "  syncs              List all syncs (--concept <name> to filter)",
-        "  sync-graph         Build and display sync graph (--format report|json|mermaid|dot)",
-        "  sync-diagnostics   Run graph diagnostics (--format report|json)",
-        "  concepts           List all concepts with action/query counts",
-        "  concept <name>     Show detailed surface for a concept",
-        "  spec-check <name>  Check if concept spec matches code surface",
-        "  spec-sync <name>   Update spec to match code (--dry-run to preview)",
-        "  doc <key>          Read a design document (convention doc)",
-        "",
-        "Options:",
-        "  --tier             quick (default) or ship",
-        "  --concept <name>   Filter syncs by concept",
-        "  --format           Output format for sync-graph/sync-diagnostics"
-      ].join("\n"));
+      console.log(
+        [
+          "Usage: cdh <command> [options]",
+          "",
+          "Commands:",
+          "  init               Initialize a new concept-design repo",
+          "  doctor             Check harness and repo health",
+          "  rules              Run all rules and report violations",
+          "  verify             Run verification stages (--tier quick|ship)",
+          "  ship               Preflight, verify, and ship changes (--confirm to commit, --no-review --no-ci)",
+          "  trace <C.action>   Show all syncs involving a concept action",
+          "  syncs              List all syncs (--concept <name> to filter)",
+          "  sync-graph         Build and display sync graph (--format report|json|mermaid|dot)",
+          "  sync-diagnostics   Run graph diagnostics (--format report|json)",
+          "  concepts           List all concepts with action/query counts",
+          "  concept <name>     Show detailed surface for a concept",
+          "  spec-check <name>  Check if concept spec matches code surface",
+          "  spec-sync <name>   Update spec to match code (--dry-run to preview)",
+          "  doc <key>          Read a design document (convention doc)",
+          "",
+          "Options:",
+          "  --tier             quick (default) or ship",
+          "  --concept <name>   Filter syncs by concept",
+          "  --format           Output format for sync-graph/sync-diagnostics",
+        ].join("\n")
+      );
       break;
 
     default:

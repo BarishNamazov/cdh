@@ -36,7 +36,10 @@ export default class AuthenticatingConcept {
     return { id };
   }
 
-  async authenticate(input: { username: string; password: string }): Promise<{ ok: true; id: string } | { error: string }> {
+  async authenticate(input: {
+    username: string;
+    password: string;
+  }): Promise<{ ok: true; id: string } | { error: string }> {
     const user = this.state.users.find((u) => u.username === input.username && u.active);
     if (!user) {
       return { error: "invalid credentials" };
@@ -50,7 +53,11 @@ export default class AuthenticatingConcept {
     return { ok: true, id: user.id };
   }
 
-  async changePassword(input: { username: string; oldPassword: string; newPassword: string }): Promise<{ ok: true } | { error: string }> {
+  async changePassword(input: {
+    username: string;
+    oldPassword: string;
+    newPassword: string;
+  }): Promise<{ ok: true } | { error: string }> {
     const user = this.state.users.find((u) => u.username === input.username && u.active);
     if (!user) {
       return { error: "user not found" };

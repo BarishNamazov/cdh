@@ -1,7 +1,7 @@
 import path from "node:path";
+import type { CdhConfig } from "../config.ts";
+import type { RepoContract } from "../repo-contract.ts";
 import { discoverSyncs, type SyncModel } from "../repo-model/syncs.ts";
-import { type CdhConfig } from "../config.ts";
-import { type RepoContract } from "../repo-contract.ts";
 
 export async function listSyncs(
   cwd: string,
@@ -24,9 +24,7 @@ export async function listSyncs(
 
 export function formatSyncs(syncs: SyncModel[], cwd: string, filterConcept?: string): string {
   if (syncs.length === 0) {
-    const msg = filterConcept
-      ? `No syncs reference concept '${filterConcept}'.`
-      : "No syncs found.";
+    const msg = filterConcept ? `No syncs reference concept '${filterConcept}'.` : "No syncs found.";
     return msg;
   }
 

@@ -7,5 +7,5 @@ export interface SyncDefinition {
 export const notificationSync: SyncDefinition = {
   name: "course-notification",
   when: "Enrolling.courseEnrolled",
-  then: "Notifying.sendNotification"
+  then: "Notifying.sendNotification",
 };

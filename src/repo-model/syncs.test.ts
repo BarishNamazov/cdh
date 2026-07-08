@@ -1,10 +1,16 @@
-import path from "node:path";
 import { describe, expect, test } from "bun:test";
+import path from "node:path";
 import { defaultConfig } from "../config.ts";
 import { loadRepoContract } from "../repo-contract.ts";
+import { formatDiagnostics, formatDiagnosticsJson, runSyncDiagnostics } from "../tools/sync-diagnostics.ts";
+import {
+  buildSyncGraph,
+  formatGraphDot,
+  formatGraphJson,
+  formatGraphMermaid,
+  formatGraphReport,
+} from "../tools/sync-graph.ts";
 import { discoverSyncs } from "./syncs.ts";
-import { buildSyncGraph, formatGraphReport, formatGraphJson, formatGraphMermaid, formatGraphDot } from "../tools/sync-graph.ts";
-import { runSyncDiagnostics, formatDiagnostics, formatDiagnosticsJson } from "../tools/sync-diagnostics.ts";
 
 const validApp = path.resolve(import.meta.dir, "..", "..", "fixtures", "valid-app");
 const syncEngineApp = path.resolve(import.meta.dir, "..", "..", "fixtures", "sync-engine-app");
@@ -31,27 +37,27 @@ describe("discoverSyncs - sync-engine DSL fixture", () => {
     const syncs = await discoverSyncs(syncEngineApp, defaultConfig);
     const labelSync = syncs.find((s) => s.file.endsWith("label-request.sync.ts"));
     expect(labelSync).toBeDefined();
-    expect(labelSync!.whenActions).toContain("Requesting.createLabelRequested");
-    expect(labelSync!.thenActions).toContain("Labeling.addLabel");
-    expect(labelSync!.hasWhere).toBe(false);
-    expect(labelSync!.hasBranches).toBe(false);
+    expect(labelSync?.whenActions).toContain("Requesting.createLabelRequested");
+    expect(labelSync?.thenActions).toContain("Labeling.addLabel");
+    expect(labelSync?.hasWhere).toBe(false);
+    expect(labelSync?.hasBranches).toBe(false);
   });
 
   test("extracts query refs and branches from cascade sync", async () => {
     const syncs = await discoverSyncs(syncEngineApp, defaultConfig);
     const auditSync = syncs.find((s) => s.file.endsWith("audit-cascade.sync.ts"));
     expect(auditSync).toBeDefined();
-    expect(auditSync!.queryRefs.some((qr) => qr.includes("Audit._getEvents"))).toBe(true);
-    expect(auditSync!.hasWhere).toBe(true);
-    expect(auditSync!.hasBranches).toBe(true);
-    expect(auditSync!.thenActions.length).toBeGreaterThan(0);
+    expect(auditSync?.queryRefs.some((qr) => qr.includes("Audit._getEvents"))).toBe(true);
+    expect(auditSync?.hasWhere).toBe(true);
+    expect(auditSync?.hasBranches).toBe(true);
+    expect(auditSync?.thenActions.length).toBeGreaterThan(0);
   });
 
   test("extracts endpoint paths", async () => {
     const syncs = await discoverSyncs(syncEngineApp, defaultConfig);
     const authSync = syncs.find((s) => s.file.endsWith("auth-endpoint.sync.ts"));
     expect(authSync).toBeDefined();
-    expect(authSync!.endpointPaths).toContain("/auth/login");
+    expect(authSync?.endpointPaths).toContain("/auth/login");
   });
 });
 

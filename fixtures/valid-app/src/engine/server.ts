@@ -9,7 +9,7 @@ const server = Bun.serve({
       return Response.json({ requested: true });
     }
     return new Response("Not found", { status: 404 });
-  }
+  },
 });
 
 console.log(`fixture server listening on ${server.url}`);

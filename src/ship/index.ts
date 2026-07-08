@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import type { CdhConfig } from "../config.ts";
 
 export interface ShipRunSnapshot {
   startRef: string;
@@ -18,11 +17,11 @@ export function runGit(cwd: string, args: string[]): { success: boolean; output:
   const proc = Bun.spawnSync(["git", ...args], {
     cwd,
     stdout: "pipe",
-    stderr: "pipe"
+    stderr: "pipe",
   });
   return {
     success: proc.exitCode === 0,
-    output: new TextDecoder().decode(proc.stdout).trim()
+    output: new TextDecoder().decode(proc.stdout).trim(),
   };
 }
 
@@ -70,14 +69,11 @@ export function captureSnapshot(cwd: string): ShipRunSnapshot | null {
 
 export function computeTouched(cwd: string, snapshot: ShipRunSnapshot): TouchedResult {
   const statusResult = runGit(cwd, ["status", "--porcelain"]);
-  const touched: string[] = [];
+  const _touched: string[] = [];
   const preExistingDirty: string[] = [];
   const touchedSet = new Set<string>();
 
-  const snapshotFiles = new Set([
-    ...snapshot.preExistingDirty,
-    ...snapshot.preExistingStaged
-  ]);
+  const snapshotFiles = new Set([...snapshot.preExistingDirty, ...snapshot.preExistingStaged]);
 
   for (const line of statusResult.output.split("\n")) {
     if (line.length < 4) continue;
@@ -102,7 +98,7 @@ export function computeTouched(cwd: string, snapshot: ShipRunSnapshot): TouchedR
 
   return {
     touched: [...touchedSet],
-    preExistingDirty: [...new Set([...snapshot.preExistingDirty, ...snapshot.preExistingStaged])]
+    preExistingDirty: [...new Set([...snapshot.preExistingDirty, ...snapshot.preExistingStaged])],
   };
 }
 
@@ -111,8 +107,7 @@ function isMergeInProgress(cwd: string): boolean {
 }
 
 function isRebaseInProgress(cwd: string): boolean {
-  return existsSync(path.join(cwd, ".git", "rebase-merge")) ||
-    existsSync(path.join(cwd, ".git", "rebase-apply"));
+  return existsSync(path.join(cwd, ".git", "rebase-merge")) || existsSync(path.join(cwd, ".git", "rebase-apply"));
 }
 
 interface ShipPreflightResult {
@@ -123,11 +118,7 @@ interface ShipPreflightResult {
   preExistingDirty: string[];
 }
 
-export function runShipPreflight(
-  cwd: string,
-  snapshot: ShipRunSnapshot,
-  touched: TouchedResult
-): ShipPreflightResult {
+export function runShipPreflight(cwd: string, _snapshot: ShipRunSnapshot, touched: TouchedResult): ShipPreflightResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -158,6 +149,6 @@ export function runShipPreflight(
     errors,
     warnings,
     touched: touched.touched,
-    preExistingDirty: touched.preExistingDirty
+    preExistingDirty: touched.preExistingDirty,
   };
 }

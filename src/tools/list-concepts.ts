@@ -1,7 +1,7 @@
 import path from "node:path";
-import { discoverConcepts, type ConceptModel } from "../repo-model/concepts.ts";
 import type { CdhConfig } from "../config.ts";
 import type { RepoContract } from "../repo-contract.ts";
+import { type ConceptModel, discoverConcepts } from "../repo-model/concepts.ts";
 
 export interface ConceptListEntry {
   name: string;
@@ -13,11 +13,7 @@ export interface ConceptListEntry {
   hasTests: boolean;
 }
 
-export async function listConcepts(
-  cwd: string,
-  config: CdhConfig,
-  contract: RepoContract
-): Promise<ConceptModel[]> {
+export async function listConcepts(cwd: string, config: CdhConfig, contract: RepoContract): Promise<ConceptModel[]> {
   return discoverConcepts(cwd, config, contract);
 }
 

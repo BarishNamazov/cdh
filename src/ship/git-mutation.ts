@@ -11,7 +11,7 @@ export interface GitMutationResult {
 
 export function commitShip(
   cwd: string,
-  config: CdhConfig,
+  _config: CdhConfig,
   runId: string,
   touchedFiles: string[],
   message: string = "ship: CDH auto-commit"
@@ -38,11 +38,7 @@ export function commitShip(
   return { ok: true, commitSha, errors: [] };
 }
 
-export function createShipBranch(
-  cwd: string,
-  config: CdhConfig,
-  runId: string
-): GitMutationResult {
+export function createShipBranch(cwd: string, config: CdhConfig, runId: string): GitMutationResult {
   let branchName = `${config.ship.branchPrefix}${runId}`;
 
   const checkResult = runGit(cwd, ["rev-parse", "--verify", branchName]);
@@ -59,11 +55,7 @@ export function createShipBranch(
   return { ok: true, branch: branchName, errors: [] };
 }
 
-export function pushBranch(
-  cwd: string,
-  remote: string,
-  branch: string
-): GitMutationResult {
+export function pushBranch(cwd: string, remote: string, branch: string): GitMutationResult {
   const result = runGit(cwd, ["push", "-u", remote, branch]);
   if (!result.success) {
     return { ok: false, errors: [`Failed to push ${branch}: ${result.output}`] };
@@ -72,23 +64,16 @@ export function pushBranch(
   return { ok: true, branch, errors: [] };
 }
 
-export function createPullRequest(
-  cwd: string,
-  branch: string,
-  title: string,
-  body: string = ""
-): GitMutationResult {
+export function createPullRequest(cwd: string, branch: string, title: string, body: string = ""): GitMutationResult {
   try {
-    const proc = Bun.spawnSync([
-      "gh", "pr", "create",
-      "--head", branch,
-      "--title", title,
-      "--body", body || "Automated CDH ship."
-    ], {
-      cwd,
-      stdout: "pipe",
-      stderr: "pipe"
-    });
+    const proc = Bun.spawnSync(
+      ["gh", "pr", "create", "--head", branch, "--title", title, "--body", body || "Automated CDH ship."],
+      {
+        cwd,
+        stdout: "pipe",
+        stderr: "pipe",
+      }
+    );
 
     if (proc.exitCode !== 0) {
       const errMsg = new TextDecoder().decode(proc.stderr).trim();

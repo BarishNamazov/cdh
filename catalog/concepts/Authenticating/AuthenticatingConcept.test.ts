@@ -23,7 +23,7 @@ function track<T extends object>(instance: T, options: { concept?: string } = {}
         records.push({ kind: "method", concept, method: property, actionUnderTest: context.actionUnderTest });
         return Reflect.apply(value, target, args);
       };
-    }
+    },
   });
 }
 
@@ -36,7 +36,7 @@ function trace(message: string): void {
   console.log(`trace: ${message}`);
 }
 
-function setupTestDb(): { users: unknown[] } {
+function _setupTestDb(): { users: unknown[] } {
   return { users: [] };
 }
 
@@ -90,7 +90,10 @@ testAction("changePassword", "rejects wrong old password", async () => {
 });
 
 testAction("unregister", "deactivates user account", () => {
-  const auth = track(new AuthenticatingConcept({ users: [{ id: "u1", username: "frank", passwordHash: "", active: true }] }), { concept: "Authenticating" });
+  const auth = track(
+    new AuthenticatingConcept({ users: [{ id: "u1", username: "frank", passwordHash: "", active: true }] }),
+    { concept: "Authenticating" }
+  );
   auth.unregister({ username: "frank" });
   const users = auth._getUsers();
   expect(users).toHaveLength(0);

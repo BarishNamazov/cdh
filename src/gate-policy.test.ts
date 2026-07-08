@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createGatePolicy } from "./gate-policy.ts";
 import { defaultConfig } from "./config.ts";
+import { createGatePolicy } from "./gate-policy.ts";
 
 const cwd = "/home/user/project";
 

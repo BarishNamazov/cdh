@@ -22,9 +22,7 @@ export function readDesignDoc(
   return { content, path: docPath };
 }
 
-export function formatDesignDoc(
-  result: { content: string; path: string } | { error: string }
-): string {
+export function formatDesignDoc(result: { content: string; path: string } | { error: string }): string {
   if ("error" in result) return result.error;
   return `File: ${result.path}\n\n${result.content}`;
 }

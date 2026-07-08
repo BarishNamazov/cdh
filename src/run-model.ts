@@ -19,28 +19,28 @@ export function generateRunId(): string {
 }
 
 export function getOrCreateRunId(env: Record<string, string | undefined>): string {
-  const existing = env["CDH_RUN_ID"];
+  const existing = env.CDH_RUN_ID;
   if (existing) return existing;
   return generateRunId();
 }
 
 export function joinParentRun(env: Record<string, string | undefined>): boolean {
-  return Boolean(env["CDH_RUN_ID"]);
+  return Boolean(env.CDH_RUN_ID);
 }
 
-export function setRunEnv(env: Record<string, string | undefined>, runId: string, runDir: string): Record<string, string> {
+export function setRunEnv(
+  env: Record<string, string | undefined>,
+  runId: string,
+  runDir: string
+): Record<string, string> {
   return {
     ...env,
     CDH_RUN_ID: runId,
-    CDH_RUN_DIR: runDir
+    CDH_RUN_DIR: runDir,
   };
 }
 
-export function computeChangedScope(
-  conceptsRoot: string,
-  syncsRoot: string,
-  touchedFiles: string[]
-): ChangedScope {
+export function computeChangedScope(conceptsRoot: string, syncsRoot: string, touchedFiles: string[]): ChangedScope {
   const concepts: string[] = [];
   const syncs: string[] = [];
 

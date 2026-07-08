@@ -1,8 +1,8 @@
-import path from "node:path";
 import { describe, expect, test } from "bun:test";
+import path from "node:path";
 import { defaultConfig } from "../config.ts";
 import { loadRepoContract } from "../repo-contract.ts";
-import { readDesignDoc, formatDesignDoc } from "./design-doc.ts";
+import { formatDesignDoc, readDesignDoc } from "./design-doc.ts";
 
 const validApp = path.resolve(import.meta.dir, "..", "..", "fixtures", "valid-app");
 

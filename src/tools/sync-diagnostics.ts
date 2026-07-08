@@ -1,8 +1,8 @@
 import path from "node:path";
-import { discoverSyncs } from "../repo-model/syncs.ts";
-import { discoverConcepts } from "../repo-model/concepts.ts";
 import type { CdhConfig } from "../config.ts";
 import type { RepoContract } from "../repo-contract.ts";
+import { discoverConcepts } from "../repo-model/concepts.ts";
+import { discoverSyncs } from "../repo-model/syncs.ts";
 
 export interface SyncDiagnostic {
   severity: "warn" | "info";
@@ -44,7 +44,7 @@ export async function runSyncDiagnostics(
             severity: "warn",
             rule: "unknown-when-action",
             path: relPath,
-            message: `when action '${wa}' does not match any known concept action`
+            message: `when action '${wa}' does not match any known concept action`,
           });
         }
       }
@@ -55,7 +55,7 @@ export async function runSyncDiagnostics(
             severity: "warn",
             rule: "unknown-then-action",
             path: relPath,
-            message: `then action '${ta}' does not match any known concept action`
+            message: `then action '${ta}' does not match any known concept action`,
           });
         }
       }
@@ -66,7 +66,7 @@ export async function runSyncDiagnostics(
             severity: "warn",
             rule: "unknown-query-ref",
             path: relPath,
-            message: `query ref '${qr}' does not match any known concept query`
+            message: `query ref '${qr}' does not match any known concept query`,
           });
         }
       }
@@ -77,14 +77,14 @@ export async function runSyncDiagnostics(
         severity: "warn",
         rule: "missing-test",
         path: relPath,
-        message: "No sibling test file found"
+        message: "No sibling test file found",
       });
     } else if (sync.hasBranches) {
       diagnostics.push({
         severity: "info",
         rule: "untested-branches",
         path: relPath,
-        message: "Sync has branches (on/branch/onError). Ensure tests cover all paths."
+        message: "Sync has branches (on/branch/onError). Ensure tests cover all paths.",
       });
     }
 
@@ -98,7 +98,7 @@ export async function runSyncDiagnostics(
           severity: "warn",
           rule: "endpoint-no-respond",
           path: relPath,
-          message: `Endpoint sync (${sync.endpointPaths.join(", ")}) has no Respond action in thenActions`
+          message: `Endpoint sync (${sync.endpointPaths.join(", ")}) has no Respond action in thenActions`,
         });
       }
     }
@@ -110,7 +110,7 @@ export async function runSyncDiagnostics(
       severity: "info",
       rule: "orphan-action",
       path: "",
-      message: `Action '${action}' is defined but not referenced by any sync`
+      message: `Action '${action}' is defined but not referenced by any sync`,
     });
   }
 
@@ -120,14 +120,17 @@ export async function runSyncDiagnostics(
       severity: "info",
       rule: "heavy-where",
       path: path.relative(cwd, hw.file),
-      message: `Sync has ${hw.queryRefs.length} query refs in where clause: ${hw.queryRefs.join(", ")}`
+      message: `Sync has ${hw.queryRefs.length} query refs in where clause: ${hw.queryRefs.join(", ")}`,
     });
   }
 
   return { syncs: syncs.length, diagnostics };
 }
 
-function findOrphanedActions(syncs: import("../repo-model/syncs.ts").SyncModel[], allConceptRefs: Set<string>): string[] {
+function findOrphanedActions(
+  syncs: import("../repo-model/syncs.ts").SyncModel[],
+  allConceptRefs: Set<string>
+): string[] {
   const referenced = new Set<string>();
 
   for (const sync of syncs) {

@@ -1,5 +1,5 @@
-import path from "node:path";
 import { describe, expect, test } from "bun:test";
+import path from "node:path";
 import { Project } from "ts-morph";
 import { defaultConfig } from "../config.ts";
 import { loadRepoContract } from "../repo-contract.ts";
@@ -15,10 +15,10 @@ describe("discoverConcepts", () => {
     expect(concepts.length).toBeGreaterThanOrEqual(1);
     const labeling = concepts.find((c) => c.name === "Labeling");
     expect(labeling).toBeDefined();
-    expect(labeling!.actions.map((method) => method.name)).toEqual(["addLabel", "removeLabel"]);
-    expect(labeling!.queries.map((method) => method.name)).toEqual(["_getLabels"]);
-    expect(labeling!.specPath?.endsWith("design/concepts/labeling.md")).toBe(true);
-    expect(labeling!.testPath?.endsWith("LabelingConcept.test.ts")).toBe(true);
+    expect(labeling?.actions.map((method) => method.name)).toEqual(["addLabel", "removeLabel"]);
+    expect(labeling?.queries.map((method) => method.name)).toEqual(["_getLabels"]);
+    expect(labeling?.specPath?.endsWith("design/concepts/labeling.md")).toBe(true);
+    expect(labeling?.testPath?.endsWith("LabelingConcept.test.ts")).toBe(true);
   });
 });
 

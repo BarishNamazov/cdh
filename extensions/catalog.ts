@@ -1,9 +1,9 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import path from "node:path";
-import { existsSync, readFileSync } from "node:fs";
-import { loadConfig } from "../src/config.ts";
 import { copyCatalogConcept } from "../src/catalog-lib.ts";
+import { loadConfig } from "../src/config.ts";
 import { loadRepoContract } from "../src/repo-contract.ts";
 
 const BUILTIN_CATALOG = path.resolve(import.meta.dir, "..", "catalog", "concepts");
@@ -35,16 +35,15 @@ function getRegistry(): Registry | null {
 function findEntry(name: string): RegistryEntry | undefined {
   const registry = getRegistry();
   if (!registry) return undefined;
-  return registry.concepts.find(
-    (c) => c.name.toLowerCase() === name.toLowerCase()
-  );
+  return registry.concepts.find((c) => c.name.toLowerCase() === name.toLowerCase());
 }
 
 export default function catalog(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "catalog_search",
     label: "Catalog Search",
-    description: "Search the CDH catalog for reusable concept implementations. Returns name, version, summary, and tags.",
+    description:
+      "Search the CDH catalog for reusable concept implementations. Returns name, version, summary, and tags.",
     parameters: Type.Object({
       query: Type.Optional(Type.String()),
     }),
@@ -70,9 +69,9 @@ export default function catalog(pi: ExtensionAPI): void {
 
       return {
         content: [{ type: "text", text: lines.join("\n") }],
-        details: { results: filtered }
+        details: { results: filtered },
       };
-    }
+    },
   });
 
   pi.registerTool({
@@ -89,7 +88,7 @@ export default function catalog(pi: ExtensionAPI): void {
       if (!entry) {
         return {
           content: [{ type: "text", text: `Catalog concept '${params.name}' not found.` }],
-          details
+          details,
         };
       }
 
@@ -111,9 +110,9 @@ export default function catalog(pi: ExtensionAPI): void {
 
       return {
         content: [{ type: "text", text: lines.join("\n") }],
-        details
+        details,
       };
-    }
+    },
   });
 
   pi.registerTool({
@@ -133,7 +132,7 @@ export default function catalog(pi: ExtensionAPI): void {
       if (!entry) {
         return {
           content: [{ type: "text", text: `Catalog concept '${params.name}' not found.` }],
-          details: { found: false }
+          details: { found: false },
         };
       }
 
@@ -150,15 +149,20 @@ export default function catalog(pi: ExtensionAPI): void {
         );
 
         return {
-          content: [{ type: "text", text: `Copied '${result.conceptName}' to ${result.targetDir} (${result.files.length} files).` }],
-          details: { result }
+          content: [
+            {
+              type: "text",
+              text: `Copied '${result.conceptName}' to ${result.targetDir} (${result.files.length} files).`,
+            },
+          ],
+          details: { result },
         };
       } catch (err) {
         return {
           content: [{ type: "text", text: err instanceof Error ? err.message : String(err) }],
-          details: { error: true }
+          details: { error: true },
         };
       }
-    }
+    },
   });
 }

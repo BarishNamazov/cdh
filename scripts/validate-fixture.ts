@@ -8,7 +8,7 @@ const requiredDocs = [
   "concept-spec-conventions",
   "implementation-conventions",
   "sync-conventions",
-  "testing-conventions"
+  "testing-conventions",
 ];
 
 function fail(message: string): never {
@@ -40,7 +40,7 @@ const requiredFiles = [
   "src/concepts/Labeling/LabelingConcept.test.ts",
   "src/syncs/label-request.sync.ts",
   "src/syncs/label-request.sync.test.ts",
-  contract.specsDir + "/labeling.md"
+  `${contract.specsDir}/labeling.md`,
 ];
 
 for (const relativePath of requiredFiles) {

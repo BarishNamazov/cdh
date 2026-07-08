@@ -1,12 +1,12 @@
 import { existsSync } from "node:fs";
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { type ClassDeclaration, type MethodDeclaration, Node, Project, SyntaxKind } from "ts-morph";
+import type { CdhConfig } from "../config.ts";
+import type { RepoContract } from "../repo-contract.ts";
 import { walk } from "../utils/fs.ts";
-import { ClassDeclaration, MethodDeclaration, Node, Project, SyntaxKind } from "ts-morph";
-import { type CdhConfig } from "../config.ts";
-import { type RepoContract } from "../repo-contract.ts";
-import { type RuleEngine, type RuleHit } from "./types.ts";
 import { applySuppressions, parseSuppression, scanSuppressions } from "./suppressions.ts";
+import type { RuleEngine, RuleHit } from "./types.ts";
 
 export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoContract): RuleEngine {
   const conceptsRoot = path.resolve(cwd, config.paths.concepts);
@@ -33,7 +33,7 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
       const suppressions = [
         ...scanSuppressions(sf, "R2"),
         ...scanSuppressions(sf, "R3"),
-        ...scanSuppressions(sf, "R4")
+        ...scanSuppressions(sf, "R4"),
       ];
 
       hits.push(...applySuppressions(r2hits, suppressions));
@@ -59,10 +59,14 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
       const allFiles: string[] = [];
 
       if (existsSync(conceptsRoot)) {
-        (await walk(conceptsRoot)).forEach((file) => { allFiles.push(file); });
+        (await walk(conceptsRoot)).forEach((file) => {
+          allFiles.push(file);
+        });
       }
       if (existsSync(syncsRoot)) {
-        (await walk(syncsRoot)).forEach((file) => { allFiles.push(file); });
+        (await walk(syncsRoot)).forEach((file) => {
+          allFiles.push(file);
+        });
       }
 
       for (const file of allFiles) {
@@ -79,7 +83,7 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
       }
 
       return hits;
-    }
+    },
   };
 }
 
@@ -138,8 +142,12 @@ function getImportSpecifiers(filePath: string, sourceText: string): string[] {
 }
 
 function r1ImportReason(
-  cwd: string, config: CdhConfig, conceptsRoot: string,
-  owningConceptDir: string, filePath: string, specifier: string
+  cwd: string,
+  config: CdhConfig,
+  conceptsRoot: string,
+  owningConceptDir: string,
+  filePath: string,
+  specifier: string
 ): string | null {
   if (specifier === "@concepts" || specifier.startsWith("@concepts/")) return "imports through @concepts";
   if (specifier === "@engine" || specifier.startsWith("@engine/")) return "imports engine internals";
@@ -149,15 +157,18 @@ function r1ImportReason(
   const syncsRoot = path.resolve(cwd, config.paths.syncs);
   if (isInside(syncsRoot, resolved)) return "imports synchronizations";
   if (isInside(path.resolve(cwd, "src/engine"), resolved)) return "imports engine internals";
-  if (isInside(conceptsRoot, resolved) && !isInside(owningConceptDir, resolved)) return "imports another concept directory";
+  if (isInside(conceptsRoot, resolved) && !isInside(owningConceptDir, resolved))
+    return "imports another concept directory";
   return null;
 }
 
 function r1Hit(filePath: string, specifier: string, reason: string): RuleHit {
   return {
-    rule: "R1", severity: "block", path: filePath,
+    rule: "R1",
+    severity: "block",
+    path: filePath,
     message: `R1 concept independence: ${reason} via '${specifier}'. Move cross-concept behavior into a sync or pass opaque data through actions.`,
-    fix: "Remove the concept-to-concept import; coordinate concepts from src/syncs instead."
+    fix: "Remove the concept-to-concept import; coordinate concepts from src/syncs instead.",
   };
 }
 
@@ -193,11 +204,15 @@ function checkR2(filePath: string, sourceText: string, helperAllowlist: Set<stri
 
       if (issues.length === 0) return [];
 
-      return [{
-        rule: "R2", severity: "warn", path: relativePath,
-        message: `R2 action signature: ${conceptName}.${name} ${issues.join("; ")}. Actions must take exactly one object parameter and return an object or Promise<object>.`,
-        fix: `Update ${conceptName}.${name} signature to take a single input object and return an object.`
-      }];
+      return [
+        {
+          rule: "R2",
+          severity: "warn",
+          path: relativePath,
+          message: `R2 action signature: ${conceptName}.${name} ${issues.join("; ")}. Actions must take exactly one object parameter and return an object or Promise<object>.`,
+          fix: `Update ${conceptName}.${name} signature to take a single input object and return an object.`,
+        },
+      ];
     });
 }
 
@@ -219,9 +234,10 @@ function isObjectType(typeText: string): boolean {
 
 function isObjectOrPromiseType(typeText: string): boolean {
   const trimmed = typeText.trim();
-  return trimmed.startsWith("{") || trimmed.startsWith("Promise<{") || trimmed === "object" || trimmed.includes("Record<");
+  return (
+    trimmed.startsWith("{") || trimmed.startsWith("Promise<{") || trimmed === "object" || trimmed.includes("Record<")
+  );
 }
-
 
 // ── R3: Query signature ──
 
@@ -238,17 +254,19 @@ function checkR3(filePath: string, sourceText: string, helperAllowlist: Set<stri
       const returnType = m.getReturnType();
       const returnText = returnType.getText();
 
-      const isArray = returnText.endsWith("[]") ||
-        returnText.startsWith("Array<") ||
-        returnText.startsWith("Promise<");
+      const isArray = returnText.endsWith("[]") || returnText.startsWith("Array<") || returnText.startsWith("Promise<");
 
       if (isArray) return [];
 
-      return [{
-        rule: "R3", severity: "warn", path: relativePath,
-        message: `R3 query signature: ${conceptName}.${name} returns '${returnText}' instead of an array or Promise<array>. Queries must return an array.`,
-        fix: `Update ${conceptName}.${name} to return an array.`
-      }];
+      return [
+        {
+          rule: "R3",
+          severity: "warn",
+          path: relativePath,
+          message: `R3 query signature: ${conceptName}.${name} returns '${returnText}' instead of an array or Promise<array>. Queries must return an array.`,
+          fix: `Update ${conceptName}.${name} to return an array.`,
+        },
+      ];
     });
 }
 
@@ -265,11 +283,15 @@ function checkR4(filePath: string, sourceText: string): RuleHit[] {
   const expectedClass = `${dirName}Concept`;
 
   if (className !== expectedClass) {
-    return [{
-      rule: "R4", severity: "warn", path: relativePath,
-      message: `R4 placement/naming: class '${className}' in ${dirName}/ must be named '${expectedClass}' to match its directory.`,
-      fix: `Rename the default export class to '${expectedClass}'.`
-    }];
+    return [
+      {
+        rule: "R4",
+        severity: "warn",
+        path: relativePath,
+        message: `R4 placement/naming: class '${className}' in ${dirName}/ must be named '${expectedClass}' to match its directory.`,
+        fix: `Rename the default export class to '${expectedClass}'.`,
+      },
+    ];
   }
 
   if (!conceptName || conceptName !== dirName) {
@@ -281,9 +303,7 @@ function checkR4(filePath: string, sourceText: string): RuleHit[] {
 
 // ── R6: Spec presence ──
 
-async function checkR6(
-  conceptsRoot: string, specsDir: string, cwd: string, config: CdhConfig
-): Promise<RuleHit[]> {
+async function checkR6(conceptsRoot: string, specsDir: string, cwd: string, _config: CdhConfig): Promise<RuleHit[]> {
   const conceptDirs = await getSubdirs(conceptsRoot);
   const requiredSections = ["purpose", "principle", "state", "actions"];
 
@@ -292,9 +312,11 @@ async function checkR6(
     const specPath = path.join(specsDir, `${dir.toLowerCase()}.md`);
     if (!existsSync(specPath)) {
       hits.push({
-        rule: "R6", severity: "fail-ship", path: path.relative(cwd, specPath),
+        rule: "R6",
+        severity: "fail-ship",
+        path: path.relative(cwd, specPath),
         message: `R6 spec presence: concept '${dir}' is missing its spec at '${specPath}'.`,
-        fix: `Create ${specPath} with required sections: ${requiredSections.join(", ")}.`
+        fix: `Create ${specPath} with required sections: ${requiredSections.join(", ")}.`,
       });
       continue;
     }
@@ -304,9 +326,11 @@ async function checkR6(
     const missing = requiredSections.filter((section) => !lowerContent.includes(`## ${section}`));
     if (missing.length > 0) {
       hits.push({
-        rule: "R6", severity: "fail-ship", path: path.relative(cwd, specPath),
+        rule: "R6",
+        severity: "fail-ship",
+        path: path.relative(cwd, specPath),
         message: `R6 spec presence: spec for '${dir}' is missing required sections: ${missing.join(", ")}.`,
-        fix: `Add ## ${missing.join(", ## ")} sections to ${path.relative(cwd, specPath)}.`
+        fix: `Add ## ${missing.join(", ## ")} sections to ${path.relative(cwd, specPath)}.`,
       });
     }
   }
@@ -325,9 +349,11 @@ async function checkR7(conceptsRoot: string): Promise<RuleHit[]> {
     if (!existsSync(testFile)) {
       const dirName = path.basename(path.dirname(conceptFile));
       hits.push({
-        rule: "R7", severity: "fail-ship", path: path.relative(process.cwd(), conceptFile),
+        rule: "R7",
+        severity: "fail-ship",
+        path: path.relative(process.cwd(), conceptFile),
         message: `R7 test presence: concept '${dirName}' has no colocated test file. Expected '${testFile}'.`,
-        fix: `Create ${testFile} with testAction() and expectError() calls.`
+        fix: `Create ${testFile} with testAction() and expectError() calls.`,
       });
     }
   }
@@ -337,7 +363,10 @@ async function checkR7(conceptsRoot: string): Promise<RuleHit[]> {
 // ── R8: Surface coverage (static advisory check) ──
 
 async function checkR8(
-  conceptsRoot: string, config: CdhConfig, contract: RepoContract, cwd: string
+  conceptsRoot: string,
+  config: CdhConfig,
+  _contract: RepoContract,
+  cwd: string
 ): Promise<RuleHit[]> {
   const conceptFiles = (await walk(conceptsRoot)).filter((f) => f.endsWith("Concept.ts") && !f.endsWith(".test.ts"));
   const hits: RuleHit[] = [];
@@ -359,9 +388,11 @@ async function checkR8(
     if (!hasTrack && surfaceMethods.length > 0) {
       const uncovered = surfaceMethods.map((m) => m.getName());
       hits.push({
-        rule: "R8", severity: "fail-ship", path: path.relative(cwd, testFile),
+        rule: "R8",
+        severity: "fail-ship",
+        path: path.relative(cwd, testFile),
         message: `R8 surface coverage (heuristic): ${dirName} tests do not use track(). Uncovered methods: ${uncovered.join(", ")}.`,
-        fix: "Wrap concept instances with track(...) from the testing module named in design/index.json."
+        fix: "Wrap concept instances with track(...) from the testing module named in design/index.json.",
       });
     }
   }
@@ -377,12 +408,13 @@ async function checkR9(filePath: string, content: string, cwd: string): Promise<
 
   const project = new Project({ skipAddingFilesFromTsConfig: true });
   const sf = project.createSourceFile(filePath, content, { overwrite: true });
-  const testCalls = sf.getDescendantsOfKind(SyntaxKind.CallExpression)
-    .filter(c => {
-      const expr = c.getExpression();
-      return Node.isIdentifier(expr) && (expr.getText() === "test" || expr.getText() === "describe" || expr.getText() === "it");
-    });
-  const hasPositive = testCalls.some(c => {
+  const testCalls = sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {
+    const expr = c.getExpression();
+    return (
+      Node.isIdentifier(expr) && (expr.getText() === "test" || expr.getText() === "describe" || expr.getText() === "it")
+    );
+  });
+  const hasPositive = testCalls.some((c) => {
     const firstArg = c.getArguments()[0];
     if (Node.isStringLiteral(firstArg)) {
       const name = firstArg.getLiteralText().toLowerCase();
@@ -390,7 +422,7 @@ async function checkR9(filePath: string, content: string, cwd: string): Promise<
     }
     return false;
   });
-  const hasNegative = testCalls.some(c => {
+  const hasNegative = testCalls.some((c) => {
     const firstArg = c.getArguments()[0];
     if (Node.isStringLiteral(firstArg)) {
       const name = firstArg.getLiteralText().toLowerCase();
@@ -401,25 +433,31 @@ async function checkR9(filePath: string, content: string, cwd: string): Promise<
 
   if (!hasSetupSyncTest) {
     hits.push({
-      rule: "R9", severity: "fail-ship", path: relativePath,
+      rule: "R9",
+      severity: "fail-ship",
+      path: relativePath,
       message: `R9 sync test shape: '${relativePath}' does not use setupSyncTest helper.`,
-      fix: "Use setupSyncTest() from the testing module named in design/index.json."
+      fix: "Use setupSyncTest() from the testing module named in design/index.json.",
     });
   }
 
   if (!hasPositive) {
     hits.push({
-      rule: "R9", severity: "fail-ship", path: relativePath,
+      rule: "R9",
+      severity: "fail-ship",
+      path: relativePath,
       message: `R9 sync test shape: '${relativePath}' has no positive test case.`,
-      fix: "Add at least one positive case using setupSyncTest."
+      fix: "Add at least one positive case using setupSyncTest.",
     });
   }
 
   if (!hasNegative) {
     hits.push({
-      rule: "R9", severity: "fail-ship", path: relativePath,
+      rule: "R9",
+      severity: "fail-ship",
+      path: relativePath,
       message: `R9 sync test shape: '${relativePath}' has no negative test case. Add a test with 'does not' or 'negative' in the name.`,
-      fix: "Add at least one negative case using setupSyncTest."
+      fix: "Add at least one negative case using setupSyncTest.",
     });
   }
 
@@ -446,10 +484,12 @@ async function checkR10(conceptsRoot: string): Promise<RuleHit[]> {
 
     if (!hasTrace) {
       hits.push({
-        rule: "R10", severity: isSuppressed ? "warn" : "fail-ship", path: path.relative(process.cwd(), testFile),
+        rule: "R10",
+        severity: isSuppressed ? "warn" : "fail-ship",
+        path: path.relative(process.cwd(), testFile),
         message: `R10 legible tests: '${path.basename(testFile)}' has principle/testAction tests but no trace() or console.log narration.`,
         fix: "Add trace() calls (from the testing module) or console.log to narrate test intent.",
-        suppressed: isSuppressed ? { reason: "R10 suppressed via cdh-ignore" } : undefined
+        suppressed: isSuppressed ? { reason: "R10 suppressed via cdh-ignore" } : undefined,
       });
     }
   }
@@ -458,9 +498,7 @@ async function checkR10(conceptsRoot: string): Promise<RuleHit[]> {
 
 function isR10Suppressed(content: string): boolean {
   const lines = content.split("\n");
-  const firstFiveNonBlank = lines
-    .slice(0, 5)
-    .filter((l) => l.trim() !== "");
+  const firstFiveNonBlank = lines.slice(0, 5).filter((l) => l.trim() !== "");
   return firstFiveNonBlank.some((line) => {
     const parsed = parseSuppression(line);
     return parsed !== null && parsed.rule === "R10";

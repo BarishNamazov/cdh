@@ -1,25 +1,34 @@
-import { describe, expect, test, mock } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import type { CdhConfig } from "../config.ts";
+import type { Journal } from "../journal/journal.ts";
 import type { RepoContract } from "../repo-contract.ts";
 import type { RuleEngine, RuleHit } from "../rules/types.ts";
-import type { Journal } from "../journal/journal.ts";
-import type { StageContext } from "./types.ts";
 import { journalHealthStage, rulesStage, syncDiagnosticsStage } from "./stages.ts";
+import type { StageContext } from "./types.ts";
 
 function baseConfig(overrides: Partial<CdhConfig["verify"]> = {}): CdhConfig {
   return {
-    paths: { concepts: "src/concepts", syncs: "src/syncs", designIndex: "design/index.json", journal: "design/journal" },
+    paths: {
+      concepts: "src/concepts",
+      syncs: "src/syncs",
+      designIndex: "design/index.json",
+      journal: "design/journal",
+    },
     rules: { importAllowlist: { syncs: ["@engine"] }, helperMethodAllowlist: [] },
     testing: { errorAssertionPatterns: ["expectError("] },
     verify: {
-      onAgentEnd: [], onShipLocal: [], optionalStages: [],
-      autofixRetries: 2, lineCoverageInfoThreshold: 85, syncDiagnostics: "warn",
-      ...overrides
+      onAgentEnd: [],
+      onShipLocal: [],
+      optionalStages: [],
+      autofixRetries: 2,
+      lineCoverageInfoThreshold: 85,
+      syncDiagnostics: "warn",
+      ...overrides,
     },
     catalogPaths: [],
     ship: { confirm: "interactive" as const, branchPrefix: "cdh/", review: true, push: true, createPr: true, ci: true },
     ci: { provider: "github", workflow: "ci.yml" },
-    frontend: { enabled: false }
+    frontend: { enabled: false },
   };
 }
 
@@ -28,7 +37,7 @@ const baseContract: RepoContract = {
   docs: {},
   helpers: { testingModule: "@utils/testing.ts", exports: [] },
   scripts: { test: "true", typecheck: "true", start: "true" },
-  health: { path: "/api/health" }
+  health: { path: "/api/health" },
 };
 
 function mockJournal(isDegradedResult: boolean = false) {
@@ -43,34 +52,50 @@ function mockJournal(isDegradedResult: boolean = false) {
     emitVerificationFinished() {},
     emitDecision() {},
     emitCatalogCopy() {},
-    isDegraded() { return isDegradedResult; },
-    getEvents() { return []; },
-    getRunId() { return "test-run"; },
-    generateReport(_task: string) { return ""; }
+    isDegraded() {
+      return isDegradedResult;
+    },
+    getEvents() {
+      return [];
+    },
+    getRunId() {
+      return "test-run";
+    },
+    generateReport(_task: string) {
+      return "";
+    },
   } as unknown as Journal;
 }
 
 function mockRuleEngine(hits: RuleHit[] = []): RuleEngine {
   return {
-    checkContent() { return []; },
-    checkFile() { return Promise.resolve([]); },
-    checkRepo() { return Promise.resolve(hits); }
+    checkContent() {
+      return [];
+    },
+    checkFile() {
+      return Promise.resolve([]);
+    },
+    checkRepo() {
+      return Promise.resolve(hits);
+    },
   };
 }
 
-function makeContext(overrides: Partial<{
-  tier: "quick" | "ship";
-  degraded: boolean;
-  ruleHits: RuleHit[];
-  config: CdhConfig;
-}> = {}): StageContext {
+function makeContext(
+  overrides: Partial<{
+    tier: "quick" | "ship";
+    degraded: boolean;
+    ruleHits: RuleHit[];
+    config: CdhConfig;
+  }> = {}
+): StageContext {
   return {
     cwd: "/tmp/test",
     config: overrides.config ?? baseConfig(),
     contract: baseContract,
     ruleEngine: mockRuleEngine(overrides.ruleHits ?? []),
     journal: mockJournal(overrides.degraded ?? false),
-    tier: overrides.tier ?? "ship"
+    tier: overrides.tier ?? "ship",
   };
 }
 
@@ -98,9 +123,7 @@ describe("rulesStage", () => {
     const result = await rulesStage(
       makeContext({
         tier: "quick",
-        ruleHits: [
-          { rule: "R01", severity: "warn", path: "foo.ts", message: "warning" }
-        ]
+        ruleHits: [{ rule: "R01", severity: "warn", path: "foo.ts", message: "warning" }],
       }),
       "all"
     );
@@ -111,10 +134,7 @@ describe("rulesStage", () => {
 
   test("quick tier fails when there are blocking violations", async () => {
     const hit: RuleHit = { rule: "R01", severity: "block", path: "src/foo.ts", message: "missing" };
-    const result = await rulesStage(
-      makeContext({ tier: "quick", ruleHits: [hit] }),
-      "all"
-    );
+    const result = await rulesStage(makeContext({ tier: "quick", ruleHits: [hit] }), "all");
 
     expect(result.status).toBe("fail");
     expect(result.summary).toContain("1 blocking violation(s)");
@@ -127,8 +147,8 @@ describe("rulesStage", () => {
         tier: "quick",
         ruleHits: [
           { rule: "R01", severity: "warn", path: "a.ts", message: "w" },
-          { rule: "R02", severity: "warn", path: "b.ts", message: "w" }
-        ]
+          { rule: "R02", severity: "warn", path: "b.ts", message: "w" },
+        ],
       }),
       "all"
     );
@@ -140,9 +160,7 @@ describe("rulesStage", () => {
     const result = await rulesStage(
       makeContext({
         tier: "ship",
-        ruleHits: [
-          { rule: "R01", severity: "warn", path: "a.ts", message: "warn" }
-        ]
+        ruleHits: [{ rule: "R01", severity: "warn", path: "a.ts", message: "warn" }],
       }),
       "all"
     );
@@ -155,7 +173,7 @@ describe("rulesStage", () => {
     const result = await rulesStage(
       makeContext({
         tier: "ship",
-        ruleHits: [{ rule: "R05", severity: "block", path: "x.ts", message: "bad" }]
+        ruleHits: [{ rule: "R05", severity: "block", path: "x.ts", message: "bad" }],
       }),
       "all"
     );
@@ -169,7 +187,7 @@ describe("rulesStage", () => {
     const result = await rulesStage(
       makeContext({
         tier: "ship",
-        ruleHits: [{ rule: "R07", severity: "fail-ship", path: "y.ts", message: "no test" }]
+        ruleHits: [{ rule: "R07", severity: "fail-ship", path: "y.ts", message: "no test" }],
       }),
       "all"
     );
@@ -185,8 +203,8 @@ describe("rulesStage", () => {
         ruleHits: [
           { rule: "R01", severity: "block", path: "a.ts", message: "m1" },
           { rule: "R07", severity: "fail-ship", path: "b.ts", message: "m2" },
-          { rule: "R02", severity: "warn", path: "c.ts", message: "m3" }
-        ]
+          { rule: "R02", severity: "warn", path: "c.ts", message: "m3" },
+        ],
       }),
       "all"
     );
@@ -222,11 +240,11 @@ describe("syncDiagnosticsStage", () => {
         syncs: 1,
         diagnostics: [
           { severity: "warn" as const, rule: "unknown-when-action", path: "foo.ts", message: "bad ref" },
-          { severity: "warn" as const, rule: "unknown-then-action", path: "foo.ts", message: "bad ref" }
-        ]
+          { severity: "warn" as const, rule: "unknown-then-action", path: "foo.ts", message: "bad ref" },
+        ],
       }),
       formatDiagnostics: () => "",
-      formatDiagnosticsJson: () => ""
+      formatDiagnosticsJson: () => "",
     }));
 
     const config = baseConfig({ syncDiagnostics: "fail-ship" });
@@ -242,10 +260,10 @@ describe("syncDiagnosticsStage", () => {
     mock.module("../tools/sync-diagnostics.ts", () => ({
       runSyncDiagnostics: async () => ({
         syncs: 2,
-        diagnostics: []
+        diagnostics: [],
       }),
       formatDiagnostics: () => "",
-      formatDiagnosticsJson: () => ""
+      formatDiagnosticsJson: () => "",
     }));
 
     const config = baseConfig({ syncDiagnostics: "fail-ship" });
@@ -262,12 +280,10 @@ describe("syncDiagnosticsStage", () => {
     mock.module("../tools/sync-diagnostics.ts", () => ({
       runSyncDiagnostics: async () => ({
         syncs: 1,
-        diagnostics: [
-          { severity: "warn" as const, rule: "missing-test", path: "foo.ts", message: "No test" }
-        ]
+        diagnostics: [{ severity: "warn" as const, rule: "missing-test", path: "foo.ts", message: "No test" }],
       }),
       formatDiagnostics: () => "",
-      formatDiagnosticsJson: () => ""
+      formatDiagnosticsJson: () => "",
     }));
 
     const config = baseConfig({ syncDiagnostics: "warn" });

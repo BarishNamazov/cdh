@@ -1,11 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { loadConfig } from "../src/config.ts";
+import { Journal } from "../src/journal/journal.ts";
 import { loadRepoContract } from "../src/repo-contract.ts";
 import { createRuleEngine } from "../src/rules/rule-engine.ts";
-import { Journal } from "../src/journal/journal.ts";
-import { runVerification } from "../src/verify/runner.ts";
 import { formatStageResults } from "../src/verify/format.ts";
+import { runVerification } from "../src/verify/runner.ts";
 
 const ENV_CAST = process.env as Record<string, string | undefined>;
 
@@ -27,15 +27,16 @@ export default function verification(pi: ExtensionAPI): void {
       journal.emitDecision(params.title, params.body, params.alternatives);
       return {
         content: [{ type: "text", text: `Decision recorded: ${params.title}` }],
-        details: { title: params.title }
+        details: { title: params.title },
       };
-    }
+    },
   });
 
   pi.registerTool({
     name: "run_verification",
     label: "Run Verification",
-    description: "Run verification stages against the repo. Use tier 'quick' for fast checks or 'ship' for full pre-ship verification.",
+    description:
+      "Run verification stages against the repo. Use tier 'quick' for fast checks or 'ship' for full pre-ship verification.",
     parameters: Type.Object({
       tier: Type.Union([Type.Literal("quick"), Type.Literal("ship")]),
     }),
@@ -53,21 +54,19 @@ export default function verification(pi: ExtensionAPI): void {
         contract,
         ruleEngine: engine,
         journal,
-        tier: params.tier
+        tier: params.tier,
       });
 
       const lines = formatStageResults(results);
 
       const failed = results.filter((r) => r.status === "fail");
-      const summary = failed.length > 0
-        ? `${failed.length} stage(s) failed.`
-        : "All stages passed.";
+      const summary = failed.length > 0 ? `${failed.length} stage(s) failed.` : "All stages passed.";
 
       return {
         content: [{ type: "text", text: `Verification (${params.tier}):\n${lines.join("\n")}\n\n${summary}` }],
-        details: { results, tier: params.tier, passed: failed.length === 0 }
+        details: { results, tier: params.tier, passed: failed.length === 0 },
       };
-    }
+    },
   });
 
   pi.on("agent_end", async (_event, ctx) => {
@@ -86,7 +85,7 @@ export default function verification(pi: ExtensionAPI): void {
         contract,
         ruleEngine: engine,
         journal,
-        tier: "quick"
+        tier: "quick",
       });
 
       const failed = results.filter((r) => r.status === "fail");

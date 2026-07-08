@@ -1,8 +1,8 @@
 import path from "node:path";
-import { discoverSyncs, type SyncModel } from "../repo-model/syncs.ts";
-import { discoverConcepts, type ConceptModel } from "../repo-model/concepts.ts";
 import type { CdhConfig } from "../config.ts";
 import type { RepoContract } from "../repo-contract.ts";
+import { discoverConcepts } from "../repo-model/concepts.ts";
+import { discoverSyncs } from "../repo-model/syncs.ts";
 
 export interface TraceResult {
   action: string;
@@ -35,12 +35,13 @@ export async function traceSyncAction(
   const [conceptName, actionName] = parts as [string, string];
 
   const concept = concepts.find((c) => c.name.toLowerCase() === conceptName.toLowerCase());
-  const conceptActions = concept
-    ? [...concept.actions.map((a) => a.name), ...concept.queries.map((q) => q.name)]
-    : [];
+  const conceptActions = concept ? [...concept.actions.map((a) => a.name), ...concept.queries.map((q) => q.name)] : [];
 
   if (!concept) {
-    const known = concepts.map((c) => c.name).sort().join(", ");
+    const known = concepts
+      .map((c) => c.name)
+      .sort()
+      .join(", ");
     if (known) {
       throw new Error(`Unknown concept '${conceptName}'. Known concepts: ${known}`);
     }
@@ -123,9 +124,8 @@ export function formatTraceResult(result: TraceResult): string {
     }
   }
 
-  const totalInvolved = new Set(
-    [...result.asTrigger, ...result.asEffect, ...result.asQuery].map((r) => r.syncFile)
-  ).size;
+  const totalInvolved = new Set([...result.asTrigger, ...result.asEffect, ...result.asQuery].map((r) => r.syncFile))
+    .size;
   if (totalInvolved === 0) {
     lines.push("");
     lines.push(`Warning: ${result.action} is not referenced by any sync. It may be orphaned.`);

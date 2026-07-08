@@ -1,6 +1,6 @@
 import { expect } from "bun:test";
-import LabelingConcept from "./LabelingConcept.ts";
 import { expectError, setupTestDb, testAction, trace, track } from "../../utils/testing.ts";
+import LabelingConcept from "./LabelingConcept.ts";
 
 testAction("addLabel", "principle: added labels are visible for the item", () => {
   trace("A user labels an item, then inspects that item's labels.");
@@ -9,7 +9,7 @@ testAction("addLabel", "principle: added labels are visible for the item", () =>
   const result = labeling.addLabel({ item: "item-1", user: "user-1", text: "favorite" });
 
   expect(labeling._getLabels({ item: "item-1" })).toEqual([
-    { id: result.id, item: "item-1", user: "user-1", text: "favorite" }
+    { id: result.id, item: "item-1", user: "user-1", text: "favorite" },
   ]);
 });
 

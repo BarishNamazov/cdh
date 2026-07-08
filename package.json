@@ -22,6 +22,9 @@
   ],
   "scripts": {
     "check": "tsc --noEmit",
+    "lint": "biome check --error-on-warnings",
+    "format": "biome check --write",
+    "format:check": "biome check",
     "test": "rm -rf dist && bun test",
     "spike:pi": "bun run scripts/wp0-pi-spike-proof.ts",
     "validate:fixture": "bun run scripts/validate-fixture.ts fixtures/valid-app",
@@ -32,6 +35,7 @@
     "ts-morph": "27.0.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
     "@earendil-works/pi-ai": "0.80.3",
     "@earendil-works/pi-coding-agent": "0.80.3",
     "@earendil-works/pi-tui": "0.80.3",

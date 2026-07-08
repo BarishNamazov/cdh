@@ -9,7 +9,7 @@ import {
   ModelRegistry,
   type SessionEntry,
   SessionManager,
-  SettingsManager
+  SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 
 interface SpikeEntryData {
@@ -44,7 +44,7 @@ function serializeSpikeEntry(entry: CustomEntry<SpikeEntryData>) {
     data: entry.data,
     id: entry.id,
     parentId: entry.parentId,
-    timestamp: entry.timestamp
+    timestamp: entry.timestamp,
   };
 }
 
@@ -53,12 +53,12 @@ async function runChildProof(): Promise<SpikeProofSummary> {
     cwd: root,
     stdout: "pipe",
     stderr: "pipe",
-    env: { ...Bun.env, CDH_WP0_CHILD: "1" }
+    env: { ...Bun.env, CDH_WP0_CHILD: "1" },
   });
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
-    child.exited
+    child.exited,
   ]);
 
   if (exitCode !== 0) {
@@ -83,7 +83,7 @@ await mkdir(agentDir, { recursive: true });
 
 const settingsManager = SettingsManager.inMemory({
   defaultProjectTrust: "always",
-  retry: { enabled: false }
+  retry: { enabled: false },
 });
 const authStorage = AuthStorage.create(path.join(agentDir, "auth.json"));
 const modelRegistry = ModelRegistry.create(authStorage, path.join(agentDir, "models.json"));
@@ -99,7 +99,7 @@ async function createLoadedResourceLoader(): Promise<DefaultResourceLoader> {
     noSkills: true,
     noPromptTemplates: true,
     noThemes: true,
-    noContextFiles: true
+    noContextFiles: true,
   });
 
   await resourceLoader.reload();
@@ -118,7 +118,7 @@ faux.setResponses([
   fauxAssistantMessage(fauxToolCall("cdh_spike_echo", { text: "from faux" }), { stopReason: "toolUse" }),
   fauxAssistantMessage("echo done"),
   fauxAssistantMessage(fauxToolCall("bash", { command: "cdh-spike-block" }), { stopReason: "toolUse" }),
-  fauxAssistantMessage("block done")
+  fauxAssistantMessage("block done"),
 ]);
 authStorage.setRuntimeApiKey(faux.getModel().provider, "faux-key");
 
@@ -132,7 +132,7 @@ async function createProofSession(sessionManager: SessionManager) {
     resourceLoader: await createLoadedResourceLoader(),
     sessionManager,
     model: faux.getModel(),
-    tools: ["cdh_spike_echo", "bash"]
+    tools: ["cdh_spike_echo", "bash"],
   });
 }
 
@@ -156,7 +156,10 @@ try {
 
   const entries = sessionManager.getEntries();
   const spikeEntries = entries.filter(isSpikeEntry);
-  assert(spikeEntries.some((entry) => entry.data?.probe === "command" && entry.data.ok), "Missing command spike entry");
+  assert(
+    spikeEntries.some((entry) => entry.data?.probe === "command" && entry.data.ok),
+    "Missing command spike entry"
+  );
   assert(
     spikeEntries.some((entry) => entry.data?.probe === "ui_status_widget_called" && entry.data.ok),
     "Missing UI status/widget call spike entry"
@@ -172,7 +175,10 @@ try {
     "Missing follow-up queued spike entry"
   );
   assert(observedFollowupRetrigger, "Missing follow-up retrigger model observation");
-  assert(spikeEntries.some((entry) => entry.data?.probe === "tool" && entry.data.ok), "Missing tool spike entry");
+  assert(
+    spikeEntries.some((entry) => entry.data?.probe === "tool" && entry.data.ok),
+    "Missing tool spike entry"
+  );
   assert(observedSystemPromptProbe, "Missing before_agent_start system prompt probe");
   assert(
     spikeEntries.some((entry) => entry.data?.probe === "tool_result" && entry.data.ok),
@@ -221,7 +227,7 @@ try {
     sessionFile,
     spikeEntries: reopenedSpikeEntries.map(serializeSpikeEntry),
     registeredTool: "cdh_spike_echo",
-    usage
+    usage,
   };
   if (!isChild) summary.child = await runChildProof();
 

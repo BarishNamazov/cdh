@@ -1,8 +1,8 @@
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { readFileSync, existsSync } from "node:fs";
-import { discoverConcepts, type ConceptModel } from "../repo-model/concepts.ts";
 import type { CdhConfig } from "../config.ts";
 import type { RepoContract } from "../repo-contract.ts";
+import { type ConceptModel, discoverConcepts } from "../repo-model/concepts.ts";
 
 export async function describeConcept(
   cwd: string,

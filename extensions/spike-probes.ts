@@ -1,4 +1,4 @@
-import { isToolCallEventType, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI, isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 interface SpikeEntryData {
@@ -16,12 +16,12 @@ export default function spikeProbes(pi: ExtensionAPI): void {
       pi.appendEntry("cdh:spike", { probe: "command", ok: true } satisfies SpikeEntryData);
       pi.appendEntry("cdh:spike", {
         probe: entryRendererAvailable ? "entry_renderer_available" : "entry_renderer_missing",
-        ok: entryRendererAvailable
+        ok: entryRendererAvailable,
       } satisfies SpikeEntryData);
       ctx.ui.setStatus("cdh-spike", "command ok");
       ctx.ui.setWidget("cdh-spike", [`args: ${args || "<none>"}`]);
       pi.appendEntry("cdh:spike", { probe: "ui_status_widget_called", ok: true } satisfies SpikeEntryData);
-    }
+    },
   });
 
   pi.registerCommand("cdh-spike-followup", {
@@ -29,7 +29,7 @@ export default function spikeProbes(pi: ExtensionAPI): void {
     handler: async (_args, _ctx) => {
       pi.appendEntry("cdh:spike", { probe: "followup_queued", ok: true } satisfies SpikeEntryData);
       pi.sendUserMessage("CDH follow-up retrigger probe", { deliverAs: "followUp" });
-    }
+    },
   });
 
   pi.registerTool({
@@ -41,9 +41,9 @@ export default function spikeProbes(pi: ExtensionAPI): void {
       pi.appendEntry("cdh:spike", { probe: "tool", ok: true } satisfies SpikeEntryData);
       return {
         content: [{ type: "text", text: params.text }],
-        details: { echoed: params.text }
+        details: { echoed: params.text },
       };
-    }
+    },
   });
 
   pi.on("session_start", (_event, ctx) => {
@@ -57,7 +57,7 @@ export default function spikeProbes(pi: ExtensionAPI): void {
   });
 
   pi.on("before_agent_start", (event) => ({
-    systemPrompt: `${event.systemPrompt}\n\nCDH WP0 spike probe loaded.`
+    systemPrompt: `${event.systemPrompt}\n\nCDH WP0 spike probe loaded.`,
   }));
 
   pi.on("tool_call", (event) => {
@@ -73,7 +73,7 @@ export default function spikeProbes(pi: ExtensionAPI): void {
     pi.appendEntry("cdh:spike", { probe: "tool_result", ok: true } satisfies SpikeEntryData);
     return {
       content: [...event.content, { type: "text" as const, text: "CDH spike tool_result observed." }],
-      details: { ...details, cdhSpikeObserved: true }
+      details: { ...details, cdhSpikeObserved: true },
     };
   });
 

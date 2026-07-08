@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import { Type, type Static } from "@sinclair/typebox";
+import { type Static, Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 const StringArray = Type.Array(Type.String());
@@ -12,14 +12,14 @@ export const CdhConfigSchema = Type.Object({
     concepts: Type.String(),
     syncs: Type.String(),
     designIndex: Type.String(),
-    journal: Type.String()
+    journal: Type.String(),
   }),
   rules: Type.Object({
     importAllowlist: Type.Object({ syncs: StringArray }),
-    helperMethodAllowlist: StringArray
+    helperMethodAllowlist: StringArray,
   }),
   testing: Type.Object({
-    errorAssertionPatterns: StringArray
+    errorAssertionPatterns: StringArray,
   }),
   verify: Type.Object({
     onAgentEnd: StringArray,
@@ -27,7 +27,7 @@ export const CdhConfigSchema = Type.Object({
     optionalStages: StringArray,
     autofixRetries: Type.Number(),
     lineCoverageInfoThreshold: Type.Number(),
-    syncDiagnostics: Type.String()
+    syncDiagnostics: Type.String(),
   }),
   catalogPaths: StringArray,
   ship: Type.Object({
@@ -36,15 +36,15 @@ export const CdhConfigSchema = Type.Object({
     review: Type.Boolean(),
     push: Type.Boolean(),
     createPr: Type.Boolean(),
-    ci: Type.Boolean()
+    ci: Type.Boolean(),
   }),
   ci: Type.Object({
     provider: Type.String(),
-    workflow: Type.String()
+    workflow: Type.String(),
   }),
   frontend: Type.Object({
-    enabled: Type.Boolean()
-  })
+    enabled: Type.Boolean(),
+  }),
 });
 
 export type CdhConfig = Static<typeof CdhConfigSchema>;
@@ -54,14 +54,14 @@ export const defaultConfig: CdhConfig = {
     concepts: "src/concepts",
     syncs: "src/syncs",
     designIndex: "design/index.json",
-    journal: "design/journal"
+    journal: "design/journal",
   },
   rules: {
     importAllowlist: { syncs: ["@engine"] },
-    helperMethodAllowlist: []
+    helperMethodAllowlist: [],
   },
   testing: {
-    errorAssertionPatterns: ["expectError(", ".error"]
+    errorAssertionPatterns: ["expectError(", ".error"],
   },
   verify: {
     onAgentEnd: ["typecheck", "rules:changed"],
@@ -73,12 +73,12 @@ export const defaultConfig: CdhConfig = {
       "tests:all",
       "surface-coverage",
       "sync-tests",
-      "legibility"
+      "legibility",
     ],
     optionalStages: ["smoke"],
     autofixRetries: 2,
     lineCoverageInfoThreshold: 85,
-    syncDiagnostics: "warn"
+    syncDiagnostics: "warn",
   },
   catalogPaths: [],
   ship: {
@@ -87,15 +87,15 @@ export const defaultConfig: CdhConfig = {
     review: true,
     push: true,
     createPr: true,
-    ci: true
+    ci: true,
   },
   ci: {
     provider: "github",
-    workflow: "ci.yml"
+    workflow: "ci.yml",
   },
   frontend: {
-    enabled: false
-  }
+    enabled: false,
+  },
 };
 
 interface LoadConfigOptions {
