@@ -1,11 +1,11 @@
 {
   "specsDir": "design/concepts",
   "docs": {
-    "concept-design-overview": "design/background/concept-design-overview.md",
-    "concept-spec-conventions": "design/background/concept-specifications.md",
-    "implementation-conventions": "design/background/implementing-concepts.md",
-    "sync-conventions": "design/background/implementing-synchronizations.md",
-    "testing-conventions": "design/background/testing-concepts.md"
+    "concept-design-overview": "concept-design-overview.md",
+    "concept-spec-conventions": "concept-specifications.md",
+    "implementation-conventions": "implementing-concepts.md",
+    "sync-conventions": "implementing-synchronizations.md",
+    "testing-conventions": "testing-concepts.md"
   },
   "helpers": {
     "testingModule": "@utils/testing.ts",

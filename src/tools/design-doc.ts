@@ -1,6 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { RepoContract } from "../repo-contract.ts";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const HARNESS_BACKGROUND = path.resolve(__dirname, "..", "..", "design", "background");
 
 export function readDesignDoc(
   cwd: string,
@@ -13,7 +17,10 @@ export function readDesignDoc(
     return { error: `Unknown document key '${key}'. Available keys: ${keys}` };
   }
 
-  const resolved = path.resolve(cwd, docPath);
+  const harnessPath = path.resolve(HARNESS_BACKGROUND, path.basename(docPath));
+  const projectPath = path.resolve(cwd, docPath);
+
+  const resolved = existsSync(harnessPath) ? harnessPath : projectPath;
   if (!existsSync(resolved)) {
     return { error: `Document not found: ${docPath}` };
   }

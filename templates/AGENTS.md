@@ -44,7 +44,7 @@ orchestrate_run in chain mode with spec-writer → concept-implementer → sync-
 
 - `list_concepts` / `describe_concept` — Inspect concept surfaces
 - `list_syncs` / `trace_sync` / `sync_graph` / `sync_diagnostics` — Inspect sync relationships
-- `read_design_doc` — Read design convention docs from `design/background/`
+- `read_design_doc` — Read CDH design convention docs (concept specs, sync patterns, testing)
 - `run_verification` — Run compliance checks (quick tier on agent_end, ship tier before commit)
 - `catalog_search` / `catalog_show` / `catalog_copy` — Use the built-in concept catalog
 - `record_decision` — Log design decisions to the journal

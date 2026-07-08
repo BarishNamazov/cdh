@@ -32,7 +32,7 @@ export function initProject(cwd: string): InitResult {
 
   // ---- empty directories ----
 
-  for (const d of ["design/background", "design/journal"]) {
+  for (const d of ["design/journal"]) {
     ensureDir(path.join(cwd, d));
   }
 
