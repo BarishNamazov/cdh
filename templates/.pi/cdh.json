@@ -1,0 +1,39 @@
+{
+  "paths": {
+    "concepts": "src/concepts",
+    "syncs": "src/syncs",
+    "designIndex": "design/index.json",
+    "journal": "design/journal"
+  },
+  "rules": {
+    "importAllowlist": { "syncs": ["@engine"] },
+    "helperMethodAllowlist": []
+  },
+  "testing": {
+    "errorAssertionPatterns": ["expectError(", ".error"]
+  },
+  "verify": {
+    "onAgentEnd": ["typecheck", "rules:changed"],
+    "onShipLocal": [
+      "journal-health",
+      "typecheck",
+      "rules:all",
+      "tests:changed",
+      "tests:all",
+      "surface-coverage",
+      "sync-tests",
+      "legibility"
+    ],
+    "optionalStages": ["smoke"],
+    "syncDiagnostics": "warn"
+  },
+  "catalogPaths": [],
+  "ship": {
+    "confirm": "interactive",
+    "branchPrefix": "cdh/",
+    "review": true,
+    "push": true,
+    "createPr": true,
+    "ci": true
+  }
+}
