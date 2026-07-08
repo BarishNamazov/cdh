@@ -1,9 +1,41 @@
-import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { runSyncDiagnostics } from "../tools/sync-diagnostics.ts";
 import type { StageContext, StageResult } from "./types.ts";
+
+async function runCommand(command: string, options: {
+  cwd: string;
+  timeout?: number;
+  env?: Record<string, string | undefined>;
+}): Promise<{ stdout: string; stderr: string }> {
+  const proc = Bun.spawn(["sh", "-c", command], {
+    cwd: options.cwd,
+    env: { ...Bun.env, ...options.env },
+    stdout: "pipe",
+    stderr: "pipe",
+    stdin: "ignore",
+  });
+
+  const timer = options.timeout
+    ? setTimeout(() => { proc.kill(); }, options.timeout)
+    : undefined;
+
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+
+  if (timer) clearTimeout(timer);
+
+  if (exitCode !== 0) {
+    const error = new Error(`Command exited with code ${exitCode}: ${stderr.slice(0, 500)}`);
+    throw error;
+  }
+
+  return { stdout, stderr };
+}
 
 export async function journalHealthStage(ctx: StageContext): Promise<StageResult> {
   const start = Date.now();
@@ -22,7 +54,7 @@ export async function typecheckStage(ctx: StageContext): Promise<StageResult> {
   const command = ctx.contract.scripts.typecheck;
 
   try {
-    execSync(command, { cwd: ctx.cwd, stdio: "pipe", timeout: 120_000 });
+    await runCommand(command, { cwd: ctx.cwd, timeout: 120_000 });
     return {
       stage: "typecheck",
       status: "pass",
@@ -79,7 +111,7 @@ export async function testStage(ctx: StageContext, scope: "changed" | "all"): Pr
   const command = ctx.contract.scripts.test;
 
   try {
-    execSync(command, { cwd: ctx.cwd, stdio: "pipe", timeout: 300_000 });
+    await runCommand(command, { cwd: ctx.cwd, timeout: 300_000 });
     return {
       stage: `tests:${scope}`,
       status: "pass",
@@ -113,12 +145,11 @@ export async function surfaceCoverageStage(ctx: StageContext): Promise<StageResu
   const command = ctx.contract.scripts.test;
 
   try {
-    execSync(command, {
+    await runCommand(command, {
       cwd: ctx.cwd,
-      stdio: "pipe",
       timeout: 300_000,
-      env: { ...process.env, CDH_SURFACE_OUT: surfaceOut },
-    } as Record<string, unknown>);
+      env: { CDH_SURFACE_OUT: surfaceOut },
+    });
   } catch {
     return {
       stage: "surface-coverage",

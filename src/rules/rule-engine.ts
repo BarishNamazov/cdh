@@ -13,6 +13,7 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
   const syncsRoot = path.resolve(cwd, config.paths.syncs);
   const specsDir = path.resolve(cwd, contract.specsDir);
   const helperAllowlist = new Set(config.rules.helperMethodAllowlist);
+  const project = new Project({ skipAddingFilesFromTsConfig: true });
 
   let allSuppressions: Suppression[] = [];
 
@@ -24,13 +25,12 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
       hits.push(...(await checkSyncTest(filePath, content)));
     }
     if (isInside(conceptsRoot, filePath) && filePath.endsWith("Concept.ts") && !filePath.endsWith(".test.ts")) {
-      hits.push(...checkR1(cwd, config, filePath, content));
+      hits.push(...checkR1(cwd, config, filePath, content, project));
 
-      const r2hits = checkR2(filePath, content, helperAllowlist);
-      const r3hits = checkR3(filePath, content, helperAllowlist);
-      const r4hits = checkR4(filePath, content);
+      const r2hits = checkR2(filePath, content, helperAllowlist, project);
+      const r3hits = checkR3(filePath, content, helperAllowlist, project);
+      const r4hits = checkR4(filePath, content, project);
 
-      const project = new Project({ skipAddingFilesFromTsConfig: true });
       const sf = project.createSourceFile(filePath, content, { overwrite: true });
       const suppressions = [
         ...scanSuppressions(sf, "R2"),
@@ -49,12 +49,12 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
 
   const checkSyncTest = async (filePath: string, content: string): Promise<RuleHit[]> => {
     if (!filePath.endsWith(".sync.test.ts")) return [];
-    return checkR9(filePath, content, cwd);
+    return checkR9(filePath, content, cwd, project);
   };
 
   return {
     checkContent(filePath, proposed) {
-      if (isInside(conceptsRoot, filePath)) return checkR1(cwd, config, filePath, proposed);
+      if (isInside(conceptsRoot, filePath)) return checkR1(cwd, config, filePath, proposed, project);
       return [];
     },
     checkFile,
@@ -83,7 +83,7 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
       if (existsSync(conceptsRoot)) {
         hits.push(...(await checkR6(conceptsRoot, specsDir, cwd, config)));
         hits.push(...(await checkR7(conceptsRoot)));
-        hits.push(...(await checkR8(conceptsRoot, config, contract, cwd)));
+        hits.push(...(await checkR8(conceptsRoot, config, contract, cwd, project)));
         hits.push(...(await checkR10(conceptsRoot)));
       }
 
@@ -97,9 +97,8 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
   };
 }
 
-function getConceptClass(filePath: string, sourceText: string): ClassDeclaration | null {
+function getConceptClass(filePath: string, sourceText: string, project: Project): ClassDeclaration | null {
   try {
-    const project = new Project({ skipAddingFilesFromTsConfig: true });
     const sourceFile = project.createSourceFile(filePath, sourceText, { overwrite: true });
     return sourceFile.getClasses().find((c) => c.isDefaultExport()) ?? null;
   } catch {
@@ -128,12 +127,12 @@ function getConceptName(filePath: string, klass: ClassDeclaration): string {
 
 // ── R1: Concept independence ──
 
-function checkR1(cwd: string, config: CdhConfig, filePath: string, proposed: string): RuleHit[] {
+function checkR1(cwd: string, config: CdhConfig, filePath: string, proposed: string, project: Project): RuleHit[] {
   const absolutePath = path.resolve(cwd, filePath);
   const conceptsRoot = path.resolve(cwd, config.paths.concepts);
   const owningConceptDir = getOwningConceptDir(conceptsRoot, absolutePath);
   if (!owningConceptDir) return [];
-  const imports = getImportSpecifiers(absolutePath, proposed);
+  const imports = getImportSpecifiers(absolutePath, proposed, project);
   return imports.flatMap((specifier) => {
     const reason = r1ImportReason(cwd, config, conceptsRoot, owningConceptDir, absolutePath, specifier);
     if (!reason) return [];
@@ -141,9 +140,8 @@ function checkR1(cwd: string, config: CdhConfig, filePath: string, proposed: str
   });
 }
 
-function getImportSpecifiers(filePath: string, sourceText: string): string[] {
+function getImportSpecifiers(filePath: string, sourceText: string, project: Project): string[] {
   try {
-    const project = new Project({ skipAddingFilesFromTsConfig: true });
     const sourceFile = project.createSourceFile(filePath, sourceText, { overwrite: true });
     return sourceFile.getImportDeclarations().map((d) => d.getModuleSpecifierValue());
   } catch {
@@ -184,8 +182,8 @@ function r1Hit(filePath: string, specifier: string, reason: string): RuleHit {
 
 // ── R2: Action signature ──
 
-function checkR2(filePath: string, sourceText: string, helperAllowlist: Set<string>): RuleHit[] {
-  const klass = getConceptClass(filePath, sourceText);
+function checkR2(filePath: string, sourceText: string, helperAllowlist: Set<string>, project: Project): RuleHit[] {
+  const klass = getConceptClass(filePath, sourceText, project);
   if (!klass) return [];
   const relativePath = path.relative(process.cwd(), filePath);
   const conceptName = getConceptName(filePath, klass);
@@ -251,8 +249,8 @@ function isObjectOrPromiseType(typeText: string): boolean {
 
 // ── R3: Query signature ──
 
-function checkR3(filePath: string, sourceText: string, helperAllowlist: Set<string>): RuleHit[] {
-  const klass = getConceptClass(filePath, sourceText);
+function checkR3(filePath: string, sourceText: string, helperAllowlist: Set<string>, project: Project): RuleHit[] {
+  const klass = getConceptClass(filePath, sourceText, project);
   if (!klass) return [];
   const relativePath = path.relative(process.cwd(), filePath);
   const conceptName = getConceptName(filePath, klass);
@@ -282,8 +280,8 @@ function checkR3(filePath: string, sourceText: string, helperAllowlist: Set<stri
 
 // ── R4: Placement and naming ──
 
-function checkR4(filePath: string, sourceText: string): RuleHit[] {
-  const klass = getConceptClass(filePath, sourceText);
+function checkR4(filePath: string, sourceText: string, project: Project): RuleHit[] {
+  const klass = getConceptClass(filePath, sourceText, project);
   if (!klass) return [];
   const relativePath = path.relative(process.cwd(), filePath);
   const conceptName = getConceptName(filePath, klass);
@@ -376,7 +374,8 @@ async function checkR8(
   conceptsRoot: string,
   config: CdhConfig,
   _contract: RepoContract,
-  cwd: string
+  cwd: string,
+  project: Project
 ): Promise<RuleHit[]> {
   const conceptFiles = (await walk(conceptsRoot)).filter((f) => f.endsWith("Concept.ts") && !f.endsWith(".test.ts"));
   const hits: RuleHit[] = [];
@@ -387,7 +386,7 @@ async function checkR8(
 
     const testContent = await readFile(testFile, "utf8");
     const conceptContent = await readFile(conceptFile, "utf8");
-    const klass = getConceptClass(conceptFile, conceptContent);
+    const klass = getConceptClass(conceptFile, conceptContent, project);
     if (!klass) continue;
 
     const surfaceMethods = getSurfaceMethods(klass, new Set(config.rules.helperMethodAllowlist));
@@ -411,12 +410,11 @@ async function checkR8(
 
 // ── R9: Sync test shape ──
 
-async function checkR9(filePath: string, content: string, cwd: string): Promise<RuleHit[]> {
+async function checkR9(filePath: string, content: string, cwd: string, project: Project): Promise<RuleHit[]> {
   const relativePath = path.relative(cwd, filePath);
   const hits: RuleHit[] = [];
   const hasSetupSyncTest = content.includes("setupSyncTest");
 
-  const project = new Project({ skipAddingFilesFromTsConfig: true });
   const sf = project.createSourceFile(filePath, content, { overwrite: true });
   const testCalls = sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {
     const expr = c.getExpression();
