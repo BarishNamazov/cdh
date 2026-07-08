@@ -49,8 +49,10 @@
   "pi": {
     "name": "cdh",
     "extensions": [
-      "./extensions/spike-probes.ts",
-      "./extensions/concept-tools.ts"
+      "./extensions/concept-tools.ts",
+      "./extensions/gates.ts",
+      "./extensions/verification.ts",
+      "./extensions/catalog.ts"
     ]
   }
 }
