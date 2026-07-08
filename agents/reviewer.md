@@ -1,6 +1,8 @@
+---
 name: reviewer
 description: Review changes for CDH rule compliance (read-only)
 tools: read, list_concepts, list_syncs, trace_sync, sync_graph, sync_diagnostics, read_design_doc, run_verification
+docs: concept-design-overview.md, implementing-synchronizations.md, testing-concepts.md
 ---
 
 # Reviewer Agent

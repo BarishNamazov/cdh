@@ -6,6 +6,32 @@ import type { RepoContract } from "../repo-contract.ts";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HARNESS_BACKGROUND = path.resolve(__dirname, "..", "..", "design", "background");
 
+export function listDocs(contract: RepoContract): string {
+  const keys = Object.keys(contract.docs).sort();
+  if (keys.length === 0) return "No design documents available.";
+
+  const lines: string[] = ["Available design documents:"];
+
+  for (const key of keys) {
+    const docPath = contract.docs[key];
+    if (!docPath) continue;
+    const resolved = path.resolve(HARNESS_BACKGROUND, path.basename(docPath));
+    let firstLine = "";
+    try {
+      if (existsSync(resolved)) {
+        const content = readFileSync(resolved, "utf-8");
+        firstLine = content.split("\n").find((l) => l.trim() && !l.startsWith("#")) ?? "";
+        firstLine = firstLine.trim().slice(0, 80);
+      }
+    } catch {
+      /* skip */
+    }
+    lines.push(`- ${key}: ${firstLine || "(no description)"}`);
+  }
+
+  return lines.join("\n");
+}
+
 export function readDesignDoc(
   cwd: string,
   contract: RepoContract,

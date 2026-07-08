@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import { type CdhConfig, loadConfig } from "../src/config.ts";
 import { loadRepoContract, type RepoContract } from "../src/repo-contract.ts";
 import { describeConcept, formatConceptDetail } from "../src/tools/describe-concept.ts";
-import { formatDesignDoc, readDesignDoc } from "../src/tools/design-doc.ts";
+import { formatDesignDoc, listDocs, readDesignDoc } from "../src/tools/design-doc.ts";
 import { formatConcepts, listConcepts } from "../src/tools/list-concepts.ts";
 import { formatSyncs, listSyncs } from "../src/tools/list-syncs.ts";
 import { checkSpecSync, formatSpecDiff } from "../src/tools/spec-sync.ts";
@@ -100,11 +100,17 @@ export default function conceptTools(pi: ExtensionAPI): void {
     name: "read_design_doc",
     label: "Read Design Doc",
     description:
-      "Read a design document by its key (e.g. 'testing-conventions', 'concept-spec-conventions'). Lists available keys on error.",
-    parameters: Type.Object({ key: Type.String() }),
+      "Read a design document by its key (e.g. 'testing-conventions', 'concept-spec-conventions'). Call without a key to list available documents.",
+    parameters: Type.Object({ key: Type.Optional(Type.String()) }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const cwd = ctx.cwd ?? process.cwd();
       const { contract } = await resolveCtx(cwd);
+
+      if (!params.key) {
+        const list = listDocs(contract);
+        return { content: [{ type: "text", text: list }], details: {} };
+      }
+
       const result = readDesignDoc(cwd, contract, params.key);
       return {
         content: [{ type: "text", text: formatDesignDoc(result) }],

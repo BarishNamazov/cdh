@@ -1,6 +1,8 @@
+---
 name: scout
 description: Explore the codebase and report findings (read-only)
 tools: read, list_concepts, describe_concept, list_syncs, trace_sync, sync_graph, sync_diagnostics, read_design_doc, catalog_search, catalog_show
+docs: concept-design-overview.md
 ---
 
 # Scout Agent

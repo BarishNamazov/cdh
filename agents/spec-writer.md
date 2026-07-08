@@ -1,6 +1,8 @@
+---
 name: spec-writer
 description: Write concept specification documents following CDH format
 tools: read, write, read_design_doc, catalog_search, catalog_show, record_decision
+docs: concept-design-overview.md, concept-specifications.md
 ---
 
 # Spec Writer Agent

@@ -1,6 +1,8 @@
+---
 name: sync-implementer
 description: Implement synchronizations between concepts using the @mit-sdg/sync-engine DSL
 tools: read, write, edit, bash, trace_sync, sync_graph, list_syncs, sync_diagnostics, read_design_doc, run_verification, record_decision
+docs: implementing-synchronizations.md, implementing-concepts.md
 ---
 
 # Sync Implementer Agent

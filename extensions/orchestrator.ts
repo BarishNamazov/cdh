@@ -13,6 +13,7 @@ import { Journal } from "../src/journal/journal.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BUILTIN_AGENTS_DIR = path.resolve(__dirname, "..", "agents");
+const HARNESS_DESIGN_DIR = path.resolve(__dirname, "..", "..", "design", "background");
 
 // ----- Agent types -----
 
@@ -21,6 +22,7 @@ interface AgentConfig {
   description: string;
   tools: string[];
   model?: string;
+  docs: string[];
   systemPrompt: string;
 }
 
@@ -91,11 +93,18 @@ function loadAgents(): AgentConfig[] {
         .map((t: string) => t.trim())
         .filter(Boolean) ?? [];
 
+    const docs =
+      frontmatter.docs
+        ?.split(",")
+        .map((d: string) => d.trim())
+        .filter(Boolean) ?? [];
+
     agents.push({
       name: frontmatter.name,
       description: frontmatter.description,
       tools,
       model: frontmatter.model,
+      docs,
       systemPrompt: body,
     });
   }
@@ -146,11 +155,25 @@ async function runSingleAgent(
   signal?: AbortSignal,
   onUpdate?: (update: string) => void
 ): Promise<AgentResult> {
+  let systemPrompt = agent.systemPrompt;
+
+  for (const docName of agent.docs) {
+    const docPath = path.join(HARNESS_DESIGN_DIR, docName);
+    try {
+      if (existsSync(docPath)) {
+        const docContent = readFileSync(docPath, "utf-8");
+        systemPrompt = `${docContent}\n\n---\n\n${systemPrompt}`;
+      }
+    } catch {
+      /* skip missing doc */
+    }
+  }
+
   const args: string[] = ["--print", "--mode", "json", "--no-session"];
   if (agent.model) args.push("--model", agent.model);
   if (agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
-  const { filePath: promptPath, tmpDir: promptDir } = await writeTempFile(agent.name, agent.systemPrompt);
+  const { filePath: promptPath, tmpDir: promptDir } = await writeTempFile(agent.name, systemPrompt);
   args.push("--append-system-prompt", promptPath);
 
   args.push(`Task: ${task}`);

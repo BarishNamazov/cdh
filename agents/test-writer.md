@@ -1,6 +1,8 @@
+---
 name: test-writer
 description: Write tests for concepts and syncs following CDH patterns
 tools: read, write, edit, bash, describe_concept, list_syncs, read_design_doc
+docs: testing-concepts.md
 ---
 
 # Test Writer Agent
