@@ -70,7 +70,7 @@ cdh doc testing-conventions
 | R2 | Action signature — one object param, returns object | WARN |
 | R3 | Query signature — returns array | WARN |
 | R4 | Placement/naming — class matches directory | WARN |
-| R5 | Protected paths — `src/engine/**`, `src/sdk/**`, `.env*` | BLOCK |
+| R5 | Protected paths — `.env` files blocked from writes | BLOCK |
 | R6 | Spec presence — required sections in specs | FAIL-SHIP |
 | R7 | Test presence — colocated `.test.ts` files | FAIL-SHIP |
 | R8 | Surface coverage — concepts wrapped with `track()` | FAIL-SHIP |
@@ -175,14 +175,12 @@ Prompt templates for common tasks:
 
 ## Catalog
 
-Copy pre-built, T7-quality concepts into your repo:
+Preview and copy pre-built, T7-quality concepts into your repo using pi agent tools:
 
-```bash
-# Copy a concept
-cdh catalog copy authenticating
-
-# Copy and rename
-cdh catalog copy authenticating --as Accounting
+```
+catalog_search  — search for catalog concepts by name, summary, or tags
+catalog_show    — inspect a catalog concept's spec and files
+catalog_copy    — copy a concept into your repo's src/concepts/
 ```
 
 Available concepts:
