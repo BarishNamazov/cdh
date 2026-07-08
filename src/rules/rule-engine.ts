@@ -5,7 +5,7 @@ import { type ClassDeclaration, type MethodDeclaration, Node, Project, SyntaxKin
 import type { CdhConfig } from "../config.ts";
 import type { RepoContract } from "../repo-contract.ts";
 import { walk } from "../utils/fs.ts";
-import { applySuppressions, parseSuppression, scanSuppressions } from "./suppressions.ts";
+import { type Suppression, applySuppressions, checkUnusedSuppressions, parseSuppression, scanSuppressions } from "./suppressions.ts";
 import type { RuleEngine, RuleHit } from "./types.ts";
 
 export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoContract): RuleEngine {
@@ -13,6 +13,8 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
   const syncsRoot = path.resolve(cwd, config.paths.syncs);
   const specsDir = path.resolve(cwd, contract.specsDir);
   const helperAllowlist = new Set(config.rules.helperMethodAllowlist);
+
+  let allSuppressions: Suppression[] = [];
 
   const checkFile = async (filePath: string): Promise<RuleHit[]> => {
     if (!existsSync(filePath)) return [];
@@ -36,6 +38,8 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
         ...scanSuppressions(sf, "R4"),
       ];
 
+      allSuppressions.push(...suppressions);
+
       hits.push(...applySuppressions(r2hits, suppressions));
       hits.push(...applySuppressions(r3hits, suppressions));
       hits.push(...applySuppressions(r4hits, suppressions));
@@ -55,6 +59,7 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
     },
     checkFile,
     async checkRepo() {
+      allSuppressions = [];
       const hits: RuleHit[] = [];
       const allFiles: string[] = [];
 
@@ -80,6 +85,11 @@ export function createRuleEngine(cwd: string, config: CdhConfig, contract: RepoC
         hits.push(...(await checkR7(conceptsRoot)));
         hits.push(...(await checkR8(conceptsRoot, config, contract, cwd)));
         hits.push(...(await checkR10(conceptsRoot)));
+      }
+
+      if (allSuppressions.length > 0) {
+        const unusedWarnings = checkUnusedSuppressions(allSuppressions, hits);
+        hits.push(...unusedWarnings);
       }
 
       return hits;

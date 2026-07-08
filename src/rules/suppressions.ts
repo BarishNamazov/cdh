@@ -97,7 +97,7 @@ export function applySuppressions(hits: RuleHit[], suppressions: Suppression[]):
   });
 }
 
-function _checkUnusedSuppressions(suppressions: Suppression[], hits: RuleHit[]): Omit<RuleHit, "suppressed">[] {
+export function checkUnusedSuppressions(suppressions: Suppression[], hits: RuleHit[]): Omit<RuleHit, "suppressed">[] {
   const warnings: Omit<RuleHit, "suppressed">[] = [];
 
   for (const suppression of suppressions) {

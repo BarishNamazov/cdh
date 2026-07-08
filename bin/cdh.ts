@@ -471,9 +471,92 @@ async function main(): Promise<void> {
       break;
     }
 
-    case "init":
-      console.log(`cdh ${command} is not implemented yet.`);
+    case "init": {
+      const { mkdirSync, writeFileSync } = await import("node:fs");
+
+      const dirs = [
+        path.join(cwd, "src", "concepts"),
+        path.join(cwd, "src", "syncs"),
+        path.join(cwd, "design", "concepts"),
+        path.join(cwd, "design", "background"),
+        path.join(cwd, "design", "journal"),
+      ];
+
+      for (const dir of dirs) {
+        mkdirSync(dir, { recursive: true });
+        console.log(`  create  ${path.relative(cwd, dir)}/`);
+      }
+
+      const cdhConfigPath = path.join(cwd, ".pi", "cdh.json");
+      const settingsPath = path.join(cwd, ".pi", "settings.json");
+
+      if (!existsSync(cdhConfigPath)) {
+        mkdirSync(path.dirname(cdhConfigPath), { recursive: true });
+        writeFileSync(cdhConfigPath, JSON.stringify({
+          paths: {
+            concepts: "src/concepts",
+            syncs: "src/syncs",
+            designIndex: "design/index.json",
+            journal: "design/journal",
+          },
+          rules: { importAllowlist: { syncs: ["@engine"] }, helperMethodAllowlist: [] },
+          testing: { errorAssertionPatterns: ["expectError(", ".error"] },
+          verify: {
+            onAgentEnd: ["typecheck", "rules:changed"],
+            onShipLocal: ["journal-health", "typecheck", "rules:all", "tests:changed", "tests:all", "surface-coverage", "sync-tests", "legibility"],
+            optionalStages: ["smoke"],
+            autofixRetries: 2,
+            lineCoverageInfoThreshold: 85,
+            syncDiagnostics: "warn",
+          },
+          catalogPaths: [],
+          ship: { confirm: "interactive", branchPrefix: "cdh/", review: true, push: true, createPr: true, ci: true },
+          ci: { provider: "github", workflow: "ci.yml" },
+          frontend: { enabled: false },
+        }, null, 2));
+        console.log(`  create  ${path.relative(cwd, cdhConfigPath)}`);
+      } else {
+        console.log(`  exists  ${path.relative(cwd, cdhConfigPath)}`);
+      }
+
+      if (!existsSync(settingsPath)) {
+        mkdirSync(path.dirname(settingsPath), { recursive: true });
+        writeFileSync(settingsPath, JSON.stringify({ packages: ["@sdg/cdh"] }, null, 2));
+        console.log(`  create  ${path.relative(cwd, settingsPath)}`);
+      } else {
+        console.log(`  exists  ${path.relative(cwd, settingsPath)}`);
+      }
+
+      const designIndexPath = path.join(cwd, "design", "index.json");
+      if (!existsSync(designIndexPath)) {
+        writeFileSync(designIndexPath, JSON.stringify({
+          specsDir: "design/concepts",
+          docs: {
+            "concept-design-overview": "design/background/concept-design-overview.md",
+            "concept-spec-conventions": "design/background/concept-specifications.md",
+            "implementation-conventions": "design/background/implementing-concepts.md",
+            "sync-conventions": "design/background/implementing-synchronizations.md",
+            "testing-conventions": "design/background/testing-concepts.md",
+            "architecture": "design/background/architecture.md",
+          },
+          helpers: {
+            testingModule: "@utils/testing.ts",
+            exports: ["setupTestDb", "trace", "track", "testAction", "expectError", "setupSyncTest"],
+          },
+          scripts: { test: "bun test", typecheck: "bun run check", start: "bun run start" },
+          health: { path: "/api/health" },
+        }, null, 2));
+        console.log(`  create  ${path.relative(cwd, designIndexPath)}`);
+      } else {
+        console.log(`  exists  ${path.relative(cwd, designIndexPath)}`);
+      }
+
+      console.log("\nCDH project initialized. Next steps:");
+      console.log("  1. Create src/concepts/<Name>/<Name>Concept.ts");
+      console.log("  2. Create design/concepts/<name>.md (spec)");
+      console.log("  3. Run 'cdh rules' to check compliance");
       break;
+    }
 
     case undefined:
     case "--help":
