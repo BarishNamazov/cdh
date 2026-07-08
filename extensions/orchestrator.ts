@@ -24,7 +24,7 @@ interface AgentConfig {
   tools: string[];
   model?: string;
   systemPrompt: string;
-  source: "user" | "project";
+  source: "user" | "project" | "builtin";
   filePath: string;
 }
 
@@ -36,8 +36,9 @@ interface AgentDiscoveryResult {
 // ----- Agent discovery -----
 
 const PI_AGENT_DIR = path.join(getAgentDir(), "agents");
+const BUILTIN_AGENTS_DIR = path.resolve(__dirname, "..", "agents");
 
-function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
+function loadAgentsFromDir(dir: string, source: "user" | "project" | "builtin"): AgentConfig[] {
   const agents: AgentConfig[] = [];
 
   if (!existsSync(dir)) return agents;
@@ -109,17 +110,13 @@ function discoverAgents(cwd: string, scope: AgentScope): AgentDiscoveryResult {
 
   const userAgents = scope === "project" ? [] : loadAgentsFromDir(PI_AGENT_DIR, "user");
   const projectAgents = scope === "user" || !projectAgentsDir ? [] : loadAgentsFromDir(projectAgentsDir, "project");
+  const builtinAgents = loadAgentsFromDir(BUILTIN_AGENTS_DIR, "builtin");
 
   const agentMap = new Map<string, AgentConfig>();
 
-  if (scope === "both") {
-    for (const agent of userAgents) agentMap.set(agent.name, agent);
-    for (const agent of projectAgents) agentMap.set(agent.name, agent);
-  } else if (scope === "user") {
-    for (const agent of userAgents) agentMap.set(agent.name, agent);
-  } else {
-    for (const agent of projectAgents) agentMap.set(agent.name, agent);
-  }
+  for (const agent of builtinAgents) agentMap.set(agent.name, agent);
+  for (const agent of userAgents) agentMap.set(agent.name, agent);
+  for (const agent of projectAgents) agentMap.set(agent.name, agent);
 
   return { agents: Array.from(agentMap.values()), projectAgentsDir };
 }
@@ -196,7 +193,7 @@ interface UsageStats {
 
 interface AgentResult {
   agent: string;
-  agentSource: "user" | "project" | "unknown";
+  agentSource: "user" | "project" | "builtin" | "unknown";
   task: string;
   exitCode: number;
   messages: Message[];
