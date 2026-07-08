@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { CdhConfig } from "../src/config.ts";
 import { loadConfig } from "../src/config.ts";
@@ -59,6 +59,7 @@ function showCommandHelp(cmd: string | undefined): void {
         "  --tier             quick (default) or ship",
         "  --concept <name>   Filter syncs by concept",
         "  --format           Output format for sync-graph/sync-diagnostics",
+        "  --version, -v      Print version",
         "",
         `Run 'cdh <command> --help' for command-specific options.`,
       ].join("\n")
@@ -190,6 +191,13 @@ async function getContract(config: CdhConfig) {
 }
 
 async function main(): Promise<void> {
+  if (command === "--version" || command === "-v") {
+    const pkgPath = path.resolve(import.meta.dir, "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+    console.log(pkg.version);
+    return;
+  }
+
   const config = await loadConfig(cwd);
 
   if (args.includes("--help") || args.includes("-h")) {
@@ -857,6 +865,7 @@ async function main(): Promise<void> {
           "  --concept <name>   Filter syncs by concept",
           "  --format           Output format for sync-graph/sync-diagnostics",
           "  --execute          Execute ship mutations (alias for --confirm)",
+          "  --version, -v      Print version",
           "",
           `Run 'cdh <command> --help' for command-specific options.`,
         ].join("\n")

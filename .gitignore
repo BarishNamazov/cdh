@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .wp0-cache/
+/.pi/
 *.log
 .DS_Store
 design/journal/runs/
