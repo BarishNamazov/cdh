@@ -8,6 +8,9 @@
     "check": "tsc --noEmit",
     "start": "bun run src/engine/server.ts"
   },
+  "dependencies": {
+    "@mit-sdg/sync-engine": "*"
+  },
   "devDependencies": {
     "@types/bun": "1.3.14",
     "typescript": "5.9.3"

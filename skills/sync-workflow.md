@@ -17,7 +17,7 @@ Follow this workflow when implementing new synchronizations between concepts.
 3. **Analyze the graph**: Call `sync_graph` to see current relationships. Identify trigger (when) and effect (then) actions.
 
 4. **Implement the sync**: Create `src/syncs/<name>.sync.ts`:
-   - Use the sync-engine DSL: `sync()`, `when()`, `act()`, `where()`, `branch()`, `on()`, `onError()`
+   - Use the `@mit-sdg/sync-engine` DSL: `sync()`, `when()`, `act()`, `where()`, `branch()`, `on()`, `onError()`
    - For endpoints: use `createEndpointDsl()` and `defineEndpoint()`
    - Export const declarations
    - Include success and error branches with `on()`/`onError()`

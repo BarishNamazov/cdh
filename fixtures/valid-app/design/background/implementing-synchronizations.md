@@ -2,14 +2,14 @@
 
 Synchronizations compose independent concepts. Concepts never import or call each other; all cross-concept behavior lives in `src/syncs/**/*.sync.ts`.
 
-CDH targets the current `sync-engine` authoring model: syncs are declarative `when -> where? -> then` rules over an append-only action journal.
+CDH targets the current `@mit-sdg/sync-engine` authoring model: syncs are declarative `when -> where? -> then` rules over an append-only action journal.
 
 ## Core Authoring API
 
-Use the fluent engine DSL from `sync-engine/engine`:
+Use the fluent engine DSL from `@mit-sdg/sync-engine`:
 
 ```typescript
-import { act, on, onError, seq, sync, type Vars, when } from "sync-engine/engine";
+import { act, on, onError, seq, sync, type Vars, when } from "@mit-sdg/sync-engine";
 
 export const AuditTodoCreate = sync(({ todoId }: Vars) =>
   when(Todo.create, { id: todoId }, { id: todoId }).then(
@@ -65,7 +65,7 @@ const AuditProfileCreate = ({ profileId }: Vars) =>
 For larger files or non-trivial `where` logic, prefer typed variables with `declareVars`:
 
 ```typescript
-import { declareVars, Where } from "sync-engine/engine";
+import { declareVars, Where } from "@mit-sdg/sync-engine";
 
 const { pipe, read } = Where;
 const v = declareVars<{ session: string; user: string; course: string; error: string }>();
@@ -149,10 +149,10 @@ act(Payment.charge, { total })
 
 ## Endpoint DSL
 
-For HTTP boundaries, use `createEndpointDsl(...)` from `sync-engine/sdk` with the app's request boundary concept. Endpoint definitions carry the request/response contract and produce syncs.
+For HTTP boundaries, use `createEndpointDsl(...)` from `@mit-sdg/sync-engine/sdk` with the app's request boundary concept. Endpoint definitions carry the request/response contract and produce syncs.
 
 ```typescript
-import { createEndpointDsl, syncMap } from "sync-engine/sdk";
+import { createEndpointDsl, syncMap } from "@mit-sdg/sync-engine/sdk";
 
 const dsl = createEndpointDsl(Requesting);
 
@@ -170,7 +170,7 @@ Request boundary syncs should respond on all success and error paths. Use `Fail(
 
 ## Graph Diagnostics
 
-The current engine includes graph devtools in `sync-engine/devtools/graph`:
+The current engine includes graph devtools in `@mit-sdg/sync-engine/devtools/graph`:
 
 - `buildSyncGraph(engine, boundary)` — builds endpoint/action graph from registered syncs
 - `computeReachability(graph)` — checks whether endpoints can reach `Respond`

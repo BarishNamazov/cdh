@@ -163,7 +163,7 @@ const AGENTS: Record<string, AgentSpec> = {
       "record_decision",
     ],
     system:
-      "Implement synchronizations between concepts using the sync-engine DSL. " +
+      "Implement synchronizations between concepts using the @mit-sdg/sync-engine DSL. " +
       "Trace before and after. Use when(), act(), where(), branch(on(...), onError(...)). " +
       "Export const declarations. Write sibling test files with positive and negative cases.",
   },

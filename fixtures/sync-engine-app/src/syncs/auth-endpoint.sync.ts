@@ -1,6 +1,6 @@
 import * as Requesting from "../concepts/Requesting.ts";
-import { Sync } from "../engine-stub/engine.ts";
-import { createEndpointDsl, syncMap } from "../engine-stub/sdk.ts";
+import { Sync } from "@mit-sdg/sync-engine";
+import { createEndpointDsl, syncMap } from "@mit-sdg/sync-engine/sdk";
 
 const dsl = createEndpointDsl(Requesting);
 

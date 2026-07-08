@@ -5,12 +5,25 @@ CDH is a pi package and CLI that turns any concept-design repo into a gated, mul
 ## Quick Start
 
 ```bash
-# Install (requires Bun)
-bun add @sdg/cdh
+# 1. Add the package (requires Bun)
+bun add @mit-sdg/cdh
 
-# Or clone and link locally
-git clone https://github.com/anomalyco/cdh.git
-cd cdh && bun link
+# 2. Register it with your pi project — in .pi/settings.json:
+#    { "packages": ["@mit-sdg/cdh"] }
+
+# 3. Start coding — all CDH tools are available inside pi
+pi
+```
+
+Once installed, CDH loads its extensions into your pi session: concept tools, sync tracing, verification, gated writes, catalog browser, and subagent orchestration.
+
+The CLI also works standalone from any concept-design repo:
+
+```bash
+cdh init      # Scaffold a new concept-design repo
+cdh doctor    # Check harness and repo health
+cdh verify    # Run verification (quick or ship tier)
+cdh ship      # Ship changes with preflight, verify, commit, branch, push, PR
 ```
 
 ## CLI Commands
@@ -89,14 +102,20 @@ cdh doc testing-conventions
 
 ## Sync Engine DSL
 
-CDH uses the sync-engine DSL for static analysis of sync files:
+CDH uses [@mit-sdg/sync-engine](https://www.npmjs.com/package/@mit-sdg/sync-engine) for static analysis of sync files:
 
 ```typescript
+import { act, on, onError, sync, type Vars, when } from "@mit-sdg/sync-engine";
+
 export const auditSync = sync(({ id }: Vars) =>
   when(Labeling.addLabel, { item: "" }, { id })
     .where((frames) => frames.query(Audit._getEvents, { targetId: id }, {}))
     .then(act(Audit.record, { id, event: "CREATED" }))
 );
+
+import { createEndpointDsl, syncMap } from "@mit-sdg/sync-engine/sdk";
+
+const dsl = createEndpointDsl(Requesting);
 
 export const auth = dsl.defineEndpoint("/auth/login", ({ Sync, Request, Respond, Actions }) => ({
   login: Sync(({ token }) => ({
@@ -200,7 +219,7 @@ A conforming repo looks like:
 
 ```
 app/
-├── .pi/settings.json        # "packages": ["@sdg/cdh"]
+├── .pi/settings.json        # "packages": ["@mit-sdg/cdh"]
 ├── .pi/cdh.json             # CDH config
 ├── design/
 │   ├── index.json           # Machine-readable repo contract

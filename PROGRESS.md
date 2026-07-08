@@ -2,7 +2,7 @@
 
 ## M1 (complete)
 
-- WP0: complete-with-exception, 2026-07-06, scaffolded `@sdg/cdh`, pinned Bun/TypeScript/pi/typebox/ts-morph dependencies, added typed pi spike probe, documented pi API notes, built `fixtures/valid-app`, added static fixture contract validation, and added `fixtures/violations/R*`. Deferred assertion: WP5a must later prove `fixtures/valid-app` passes `cdh verify --tier ship --no-review --no-ci`. `bun run spike:pi` proves command registration, custom tool registration/execution, `tool_call` blocking, `tool_result` mutation, `before_agent_start` system-prompt mutation, `agent_end` observation, follow-up queueing/retrigger, custom entry append, status/widget API calls, session-file persistence, and child subprocess usage capture. Exception: `registerEntryRenderer` is absent in installed pi 0.80.3 runtime.
+- WP0: complete-with-exception, 2026-07-06, scaffolded `@mit-sdg/cdh`, pinned Bun/TypeScript/pi/typebox/ts-morph dependencies, added typed pi spike probe, documented pi API notes, built `fixtures/valid-app`, added static fixture contract validation, and added `fixtures/violations/R*`. Deferred assertion: WP5a must later prove `fixtures/valid-app` passes `cdh verify --tier ship --no-review --no-ci`. `bun run spike:pi` proves command registration, custom tool registration/execution, `tool_call` blocking, `tool_result` mutation, `before_agent_start` system-prompt mutation, `agent_end` observation, follow-up queueing/retrigger, custom entry append, status/widget API calls, session-file persistence, and child subprocess usage capture. Exception: `registerEntryRenderer` is absent in installed pi 0.80.3 runtime.
 - WP1: complete, 2026-07-06, implemented R1-R4 and R6-R10 rules in `src/rules/rule-engine.ts` with test coverage for all violation fixtures. Implemented repo model with concept discovery and sync discovery. Implemented suppression scanner for R2/R3/R4 construct-level and R10 file-level cdh-ignore comments.
 - WP2: complete, 2026-07-06, implemented run model with run ID generation, parent run join, and changed scope computation. Implemented journal core with 18 event types, JSONL writer with degraded mode, dual-write journal class, report generator with INDEX.md appender.
 - WP3: complete, 2026-07-06, implemented gate policy with protected path enforcement (`.env`), bash screening (rm -rf, force-push, .env writes).
@@ -48,7 +48,7 @@
 
 ## M2 — Workstream H: Documentation (complete)
 
-- H1: README updated with sync-engine DSL, ship safety, agent tools table, orchestrator docs, skills/prompts reference.
+- H1: README updated with @mit-sdg/sync-engine DSL, ship safety, agent tools table, orchestrator docs, skills/prompts reference.
 - H2-H3: Runbook and detailed progress tracking deferred to M3.
 
 ## Deferred to M3

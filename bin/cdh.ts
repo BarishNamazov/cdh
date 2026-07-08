@@ -813,7 +813,7 @@ async function main(): Promise<void> {
 
       if (!existsSync(settingsPath)) {
         mkdirSync(path.dirname(settingsPath), { recursive: true });
-        writeFileSync(settingsPath, JSON.stringify({ packages: ["@sdg/cdh"] }, null, 2));
+        writeFileSync(settingsPath, JSON.stringify({ packages: ["@mit-sdg/cdh"] }, null, 2));
         console.log(`  create  ${path.relative(cwd, settingsPath)}`);
       } else {
         console.log(`  exists  ${path.relative(cwd, settingsPath)}`);

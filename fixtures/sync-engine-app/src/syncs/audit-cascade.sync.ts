@@ -1,7 +1,7 @@
 import * as Audit from "../concepts/Audit.ts";
 import * as Labeling from "../concepts/Labeling.ts";
-import type { Vars } from "../engine-stub/engine.ts";
-import { act, on, onError, sync, when } from "../engine-stub/engine.ts";
+import type { Vars } from "@mit-sdg/sync-engine";
+import { act, on, onError, sync, when } from "@mit-sdg/sync-engine";
 
 export const AuditLabelCreate = sync(({ labelId, error }: Vars) =>
   when(Labeling.addLabel, { item: "" }, { id: labelId })

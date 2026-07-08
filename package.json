@@ -1,5 +1,5 @@
 {
-  "name": "@sdg/cdh",
+  "name": "@mit-sdg/cdh",
   "version": "0.0.0",
   "description": "Concept Design Harness for pi-powered concept-design repositories.",
   "type": "module",
@@ -31,6 +31,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
+    "@mit-sdg/sync-engine": "*",
     "@sinclair/typebox": "0.34.49",
     "ts-morph": "27.0.2"
   },
