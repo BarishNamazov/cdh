@@ -27,6 +27,7 @@ import {
 import { formatTraceResult, traceSyncAction } from "../src/tools/trace-sync.ts";
 import { formatStageResults } from "../src/verify/format.ts";
 import { runVerification } from "../src/verify/runner.ts";
+import { copyCatalogConcept } from "../src/catalog-lib.ts";
 
 const [, , command, ...args] = Bun.argv;
 const cwd = process.cwd();
@@ -151,6 +152,22 @@ function showCommandHelp(cmd: string | undefined): void {
     case "doc":
       console.log("Usage: cdh doc <key>\n\nRead a design document by its key from design/index.json docs.\nExample: cdh doc testing-conventions");
       break;
+    case "catalog":
+      console.log(
+        [
+          "Usage: cdh catalog <subcommand> [options]",
+          "",
+          "Subcommands:",
+          "  search [query]  Search for concepts by name, summary, or tags",
+          "  show <name>     Inspect a catalog concept's spec and details",
+          "  copy <name>     Copy a concept into your repo",
+          "    --as <name>     Rename the copied concept",
+          "    --overwrite     Replace existing concept directory",
+          "",
+          "Example: cdh catalog copy authenticating --as Auth",
+        ].join("\n")
+      );
+      break;
     default:
       console.error(`Unknown command: ${cmd}`);
   }
@@ -213,6 +230,13 @@ async function main(): Promise<void> {
         ruleEngine: engine,
         journal,
         tier,
+        onStageStart: (stage, i, total) => {
+          process.stdout.write(`\r  [${i + 1}/${total}] ${stage}...`);
+        },
+        onStageDone: (result) => {
+          const icon = result.status === "pass" ? "+" : result.status === "warn" ? "~" : result.status === "skip" ? "-" : "x";
+          process.stdout.write(`\r  ${icon} ${result.stage} (${result.durationMs}ms)\n`);
+        },
       });
 
       console.log(`\nVerification (${tier}):`);
@@ -355,6 +379,134 @@ async function main(): Promise<void> {
 
       if ("error" in result) process.exit(1);
       break;
+    }
+
+    case "catalog": {
+      const subcommand = args[0];
+      const catalogArgs = args.slice(1);
+      const registryPath = path.resolve(import.meta.dir, "..", "catalog", "registry.json");
+      const catalogBase = path.resolve(import.meta.dir, "..", "catalog");
+
+      if (!existsSync(registryPath)) {
+        console.error("Catalog registry not found.");
+        process.exit(1);
+      }
+
+      const registry = JSON.parse(await (await import("node:fs/promises")).readFile(registryPath, "utf8")) as {
+        concepts: Array<{ id: string; name: string; version: string; summary: string; tags: string[]; pairsWith?: string[]; files: string[] }>;
+      };
+
+      const findByName = (name: string) =>
+        registry.concepts.find((c) => c.name.toLowerCase() === name.toLowerCase());
+
+      if (!subcommand || subcommand === "--help" || subcommand === "-h") {
+        console.log(
+          [
+            "Usage: cdh catalog <subcommand> [options]",
+            "",
+            "Subcommands:",
+            "  search [query]  Search catalog concepts",
+            "  show <name>     Show catalog concept spec and details",
+            "  copy <name>     Copy a concept into your repo (--as <name> to rename, --overwrite to replace)",
+            "",
+            `Example: cdh catalog copy authenticating --as Auth`,
+          ].join("\n")
+        );
+        break;
+      }
+
+      if (subcommand === "search") {
+        const q = catalogArgs[0];
+        const filtered = q
+          ? registry.concepts.filter(
+              (c) =>
+                c.name.toLowerCase().includes(q.toLowerCase()) ||
+                c.summary.toLowerCase().includes(q.toLowerCase()) ||
+                c.tags.some((t) => t.toLowerCase().includes(q.toLowerCase()))
+            )
+          : registry.concepts;
+
+        if (filtered.length === 0) {
+          console.log("No matching concepts found.");
+        } else {
+          for (const c of filtered) {
+            console.log(`  ${c.name} (${c.version}): ${c.summary}`);
+            if (c.tags.length > 0) console.log(`    Tags: ${c.tags.join(", ")}`);
+          }
+        }
+        break;
+      }
+
+      if (subcommand === "show") {
+        const name = catalogArgs[0];
+        if (!name) {
+          console.error("Usage: cdh catalog show <name>");
+          process.exit(1);
+        }
+
+        const entry = findByName(name);
+        if (!entry) {
+          const available = registry.concepts.map((c) => c.name).join(", ");
+          console.error(`Catalog concept '${name}' not found. Available: ${available}`);
+          process.exit(1);
+        }
+
+        const conceptDir = path.join(catalogBase, "concepts", entry.name);
+        const specPath = path.join(conceptDir, "concept.md");
+
+        console.log(`${entry.name} (${entry.version})`);
+        console.log(entry.summary);
+        console.log();
+        console.log(`Tags: ${entry.tags.join(", ")}`);
+        if (entry.pairsWith) console.log(`Pairs with: ${entry.pairsWith.join(", ")}`);
+        console.log();
+
+        if (existsSync(specPath)) {
+          const { readFile } = await import("node:fs/promises");
+          console.log(await readFile(specPath, "utf8"));
+        }
+        break;
+      }
+
+      if (subcommand === "copy") {
+        const nameIndex = catalogArgs.findIndex((a) => !a.startsWith("--"));
+        const name = nameIndex >= 0 ? catalogArgs[nameIndex] : undefined;
+        if (!name) {
+          console.error("Usage: cdh catalog copy <name> [--as <rename>] [--overwrite]");
+          process.exit(1);
+        }
+
+        const entry = findByName(name);
+        if (!entry) {
+          const available = registry.concepts.map((c) => c.name).join(", ");
+          console.error(`Catalog concept '${name}' not found. Available: ${available}`);
+          process.exit(1);
+        }
+
+        const asIndex = catalogArgs.indexOf("--as");
+        const asName = asIndex >= 0 && catalogArgs[asIndex + 1] ? catalogArgs[asIndex + 1] : undefined;
+        const overwrite = catalogArgs.includes("--overwrite");
+
+        const contract = await getContract(config);
+
+        try {
+          const result = copyCatalogConcept(catalogBase, cwd, entry, config, contract, {
+            as: asName,
+            overwrite,
+          });
+
+          console.log(`Copied '${result.conceptName}' to ${result.targetDir}/`);
+          console.log(`  Files: ${result.files.map((f) => path.relative(cwd, path.resolve(cwd, f))).join(", ")}`);
+        } catch (err) {
+          console.error(err instanceof Error ? err.message : String(err));
+          process.exit(1);
+        }
+        break;
+      }
+
+      console.error(`Unknown catalog subcommand: ${subcommand}`);
+      console.error("Available: search, show, copy");
+      process.exit(1);
     }
 
     case "doctor": {
@@ -535,6 +687,13 @@ async function main(): Promise<void> {
         ruleEngine: engine,
         journal,
         tier: "ship",
+        onStageStart: (stage, i, total) => {
+          process.stdout.write(`\r  [${i + 1}/${total}] ${stage}...`);
+        },
+        onStageDone: (result) => {
+          const icon = result.status === "pass" ? "+" : result.status === "warn" ? "~" : result.status === "skip" ? "-" : "x";
+          process.stdout.write(`\r  ${icon} ${result.stage} (${result.durationMs}ms)\n`);
+        },
       });
 
       for (const line of formatStageResults(results)) {
@@ -639,14 +798,10 @@ async function main(): Promise<void> {
             onAgentEnd: ["typecheck", "rules:changed"],
             onShipLocal: ["journal-health", "typecheck", "rules:all", "tests:changed", "tests:all", "surface-coverage", "sync-tests", "legibility"],
             optionalStages: ["smoke"],
-            autofixRetries: 2,
-            lineCoverageInfoThreshold: 85,
             syncDiagnostics: "warn",
           },
           catalogPaths: [],
           ship: { confirm: "interactive", branchPrefix: "cdh/", review: true, push: true, createPr: true, ci: true },
-          ci: { provider: "github", workflow: "ci.yml" },
-          frontend: { enabled: false },
         }, null, 2));
         console.log(`  create  ${path.relative(cwd, cdhConfigPath)}`);
       } else {
@@ -714,6 +869,7 @@ async function main(): Promise<void> {
           "  spec-check <name>  Check if concept spec matches code surface",
           "  spec-sync <name>   Update spec to match code (--dry-run to preview)",
           "  doc <key>          Read a design document (convention doc)",
+          "  catalog <cmd>      Search, show, or copy catalog concepts",
           "",
           "Options:",
           "  --tier             quick (default) or ship",

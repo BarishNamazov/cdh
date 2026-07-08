@@ -25,8 +25,8 @@ export const CdhConfigSchema = Type.Object({
     onAgentEnd: StringArray,
     onShipLocal: StringArray,
     optionalStages: StringArray,
-    autofixRetries: Type.Number(),
-    lineCoverageInfoThreshold: Type.Number(),
+    autofixRetries: Type.Optional(Type.Number()),
+    lineCoverageInfoThreshold: Type.Optional(Type.Number()),
     syncDiagnostics: Type.String(),
   }),
   catalogPaths: StringArray,
@@ -38,13 +38,13 @@ export const CdhConfigSchema = Type.Object({
     createPr: Type.Boolean(),
     ci: Type.Boolean(),
   }),
-  ci: Type.Object({
+  ci: Type.Optional(Type.Object({
     provider: Type.String(),
     workflow: Type.String(),
-  }),
-  frontend: Type.Object({
+  })),
+  frontend: Type.Optional(Type.Object({
     enabled: Type.Boolean(),
-  }),
+  })),
 });
 
 export type CdhConfig = Static<typeof CdhConfigSchema>;
@@ -76,8 +76,6 @@ export const defaultConfig: CdhConfig = {
       "legibility",
     ],
     optionalStages: ["smoke"],
-    autofixRetries: 2,
-    lineCoverageInfoThreshold: 85,
     syncDiagnostics: "warn",
   },
   catalogPaths: [],
@@ -88,13 +86,6 @@ export const defaultConfig: CdhConfig = {
     push: true,
     createPr: true,
     ci: true,
-  },
-  ci: {
-    provider: "github",
-    workflow: "ci.yml",
-  },
-  frontend: {
-    enabled: false,
   },
 };
 

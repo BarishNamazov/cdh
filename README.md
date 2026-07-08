@@ -175,12 +175,20 @@ Prompt templates for common tasks:
 
 ## Catalog
 
-Preview and copy pre-built, T7-quality concepts into your repo using pi agent tools:
+Preview and copy pre-built, T7-quality concepts into your repo:
 
-```
-catalog_search  — search for catalog concepts by name, summary, or tags
-catalog_show    — inspect a catalog concept's spec and files
-catalog_copy    — copy a concept into your repo's src/concepts/
+```bash
+# Search for concepts
+cdh catalog search identity
+
+# Inspect a concept
+cdh catalog show authenticating
+
+# Copy a concept into your repo
+cdh catalog copy authenticating
+
+# Copy and rename
+cdh catalog copy authenticating --as Auth
 ```
 
 Available concepts:

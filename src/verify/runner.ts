@@ -21,6 +21,8 @@ export interface RunVerificationOptions {
   journal: Journal;
   tier: "quick" | "ship";
   stages?: string[];
+  onStageStart?: (stage: string, index: number, total: number) => void;
+  onStageDone?: (result: StageResult, index: number, total: number) => void;
 }
 
 export async function runVerification(options: RunVerificationOptions): Promise<StageResult[]> {
@@ -47,7 +49,12 @@ export async function runVerification(options: RunVerificationOptions): Promise<
 
   const results: StageResult[] = [];
 
-  for (const [name, fn] of stageList) {
+  const total = stageList.length;
+
+  for (let i = 0; i < stageList.length; i++) {
+    const [name, fn] = stageList[i]!;
+    options.onStageStart?.(name, i, total);
+
     let result: StageResult;
     try {
       result = await fn(ctx);
@@ -59,6 +66,8 @@ export async function runVerification(options: RunVerificationOptions): Promise<
         summary: `Stage threw: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
+
+    options.onStageDone?.(result, i, total);
 
     journal.emitVerificationStage(result.stage, result.status, result.durationMs, result.summary, result.detailPath);
 
