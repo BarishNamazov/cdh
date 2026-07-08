@@ -1,6 +1,6 @@
 {
   "name": "@mit-sdg/cdh",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Concept Design Harness for pi-powered concept-design repositories.",
   "type": "module",
   "private": false,
@@ -61,7 +61,11 @@
       "./extensions/orchestrator.ts",
       "./extensions/init.ts"
     ],
-    "skills": ["./skills/*.md"],
-    "prompts": ["./prompts/*.md"]
+    "skills": [
+      "./skills/*.md"
+    ],
+    "prompts": [
+      "./prompts/*.md"
+    ]
   }
 }
