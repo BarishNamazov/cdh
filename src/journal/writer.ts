@@ -1,6 +1,9 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 50;
+
 export class JsonlWriter {
   private degraded = false;
   private seq = 0;
@@ -21,11 +24,8 @@ export class JsonlWriter {
       throw new Error("JSONL line must end with newline");
     }
 
-    try {
-      appendFileSync(this.filePath, line, "utf8");
+    if (this.tryWrite(line)) {
       this.seq++;
-    } catch {
-      this.markDegraded();
     }
   }
 
@@ -40,12 +40,24 @@ export class JsonlWriter {
       ...data,
     };
 
-    try {
-      appendFileSync(this.filePath, `${JSON.stringify(entry)}\n`, "utf8");
+    if (this.tryWrite(`${JSON.stringify(entry)}\n`)) {
       this.seq++;
-    } catch {
-      this.markDegraded();
     }
+  }
+
+  private tryWrite(line: string): boolean {
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        appendFileSync(this.filePath, line, "utf8");
+        return true;
+      } catch {
+        if (attempt < MAX_RETRIES) {
+          Bun.sleepSync(RETRY_DELAY_MS * attempt);
+        }
+      }
+    }
+    this.markDegraded();
+    return false;
   }
 
   isDegraded(): boolean {
