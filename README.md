@@ -7,12 +7,9 @@ verification, and multi-agent orchestration — all inside your pi coding agent 
 ## Quick Start
 
 ```bash
-# 1. Bootstrap a new concept-design repo
+# Bootstrap a new concept-design repo
 cdh init
 bun install
-
-# 2. Install subagents (optional — for multi-agent orchestration)
-cdh setup
 
 # 3. Start pi — CDH loads automatically
 pi
@@ -48,13 +45,13 @@ _"build a todo app with labeling and comments"_ and it will read the design docs
 create specs, implement concepts, wire up syncs with `@mit-sdg/sync-engine`, write
 tests, and run verification — all in one session.
 
-**Multi-agent mode** (needs `cdh setup`): use `orchestrate_run` to delegate work to
+**Multi-agent mode**: subagents ship with the CDH package. Use `orchestrate_run` to delegate work to
 specialized subagents. Each runs as an isolated pi process with a focused toolset.
 This is optional — single-agent mode handles everything.
 
 ## Subagents
 
-After `cdh setup`, six specialized agents are installed at `~/.pi/agent/agents/`:
+Six specialized agents ship with the package:
 
 | Agent | Role | Tools | Mode |
 |-------|------|-------|------|
@@ -91,7 +88,6 @@ sync graph before and after edits, and all agents run verification on their own 
 
 ```bash
 cdh init                    # Scaffold a concept-design repo with Greeting example
-cdh setup                   # Install subagents into ~/.pi/agent/agents/
 
 cdh rules                   # Run all rules against the current repo
 cdh verify --tier quick     # Quick check (typecheck + rules) — runs on every agent end

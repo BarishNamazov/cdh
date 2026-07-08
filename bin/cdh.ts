@@ -74,7 +74,9 @@ function showCommandHelp(cmd: string | undefined): void {
       );
       break;
     case "setup":
-      console.log("Usage: cdh setup\n\nInstall CDH agent specs to ~/.pi/agent/agents/ for pi agent discovery.");
+      console.log(
+        "Usage: cdh setup\n\nAgents now ship with the CDH package — no setup needed.\nUpdate the @mit-sdg/cdh npm package to get the latest agents."
+      );
       break;
     case "doctor":
       console.log(
@@ -823,40 +825,8 @@ async function main(): Promise<void> {
     }
 
     case "setup": {
-      const { homedir } = await import("node:os");
-      const { mkdirSync, readdirSync, readFileSync, writeFileSync } = await import("node:fs");
-      const agentSourceDir = path.resolve(import.meta.dir, "..", "agents");
-      const agentDestDir = path.join(homedir(), ".pi", "agent", "agents");
-
-      if (!existsSync(agentSourceDir)) {
-        console.error(`Agent source directory not found: ${agentSourceDir}`);
-        process.exit(1);
-      }
-
-      mkdirSync(agentDestDir, { recursive: true });
-
-      const files = readdirSync(agentSourceDir).filter((f) => f.endsWith(".md"));
-      let installed = 0;
-      let skipped = 0;
-
-      for (const file of files) {
-        const sourcePath = path.join(agentSourceDir, file);
-        const destPath = path.join(agentDestDir, `cdh-${file}`);
-
-        if (existsSync(destPath)) {
-          console.log(`  skip    cdh-${file} (already installed)`);
-          skipped++;
-          continue;
-        }
-
-        const content = readFileSync(sourcePath, "utf8");
-        writeFileSync(destPath, content, { encoding: "utf8", mode: 0o644 });
-        console.log(`  install cdh-${file}`);
-        installed++;
-      }
-
-      console.log(`\nInstalled ${installed} agent(s), skipped ${skipped}.`);
-      console.log(`Agents written to: ${agentDestDir}/`);
+      console.log("Agents now ship with the CDH package — no setup needed.");
+      console.log("Update @mit-sdg/cdh to get the latest agents.");
       break;
     }
 
@@ -869,7 +839,6 @@ async function main(): Promise<void> {
           "",
           "Commands:",
           "  init               Initialize a new concept-design repo",
-          "  setup              Install CDH agents to ~/.pi/agent/agents/",
           "  doctor             Check harness and repo health",
           "  rules              Run all rules and report violations",
           "  verify             Run verification stages (--tier quick|ship)",

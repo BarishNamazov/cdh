@@ -1,22 +1,20 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Message } from "@earendil-works/pi-ai";
-import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { CONFIG_DIR_NAME, getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
+import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { loadConfig } from "../src/config.ts";
 import { Journal } from "../src/journal/journal.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const BUILTIN_AGENTS_DIR = path.resolve(__dirname, "..", "agents");
 
 // ----- Agent types -----
-
-export type AgentScope = "user" | "project" | "both";
 
 interface AgentConfig {
   name: string;
@@ -24,28 +22,50 @@ interface AgentConfig {
   tools: string[];
   model?: string;
   systemPrompt: string;
-  source: "user" | "project" | "builtin";
-  filePath: string;
 }
 
-interface AgentDiscoveryResult {
-  agents: AgentConfig[];
-  projectAgentsDir: string | null;
+interface AgentResult {
+  agent: string;
+  task: string;
+  exitCode: number;
+  messages: Message[];
+  stderr: string;
+  usage: UsageStats;
+  model?: string;
+  stopReason?: string;
+  errorMessage?: string;
+  step?: number;
 }
 
-// ----- Agent discovery -----
+interface UsageStats {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+  contextTokens: number;
+  turns: number;
+}
 
-const PI_AGENT_DIR = path.join(getAgentDir(), "agents");
-const BUILTIN_AGENTS_DIR = path.resolve(__dirname, "..", "agents");
+interface OrchestratorDetails {
+  mode: "single" | "parallel" | "chain";
+  results: AgentResult[];
+}
 
-function loadAgentsFromDir(dir: string, source: "user" | "project" | "builtin"): AgentConfig[] {
+// ----- Agent loading -----
+
+let _agentsCache: AgentConfig[] | null = null;
+
+function loadAgents(): AgentConfig[] {
+  if (_agentsCache) return _agentsCache;
+
   const agents: AgentConfig[] = [];
 
-  if (!existsSync(dir)) return agents;
+  if (!existsSync(BUILTIN_AGENTS_DIR)) return agents;
 
   let entries: string[];
   try {
-    entries = readdirSync(dir);
+    entries = readdirSync(BUILTIN_AGENTS_DIR);
   } catch {
     return agents;
   }
@@ -53,7 +73,7 @@ function loadAgentsFromDir(dir: string, source: "user" | "project" | "builtin"):
   for (const entry of entries) {
     if (!entry.endsWith(".md")) continue;
 
-    const filePath = path.join(dir, entry);
+    const filePath = path.join(BUILTIN_AGENTS_DIR, entry);
     let content: string;
     try {
       content = readFileSync(filePath, "utf-8");
@@ -77,139 +97,11 @@ function loadAgentsFromDir(dir: string, source: "user" | "project" | "builtin"):
       tools,
       model: frontmatter.model,
       systemPrompt: body,
-      source,
-      filePath,
     });
   }
 
+  _agentsCache = agents;
   return agents;
-}
-
-function isDirectory(p: string): boolean {
-  try {
-    return require("node:fs").statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-function findNearestProjectAgentsDir(cwd: string): string | null {
-  let currentDir = cwd;
-  while (true) {
-    const candidate = path.join(currentDir, CONFIG_DIR_NAME, "agents");
-    if (isDirectory(candidate)) return candidate;
-
-    const parentDir = path.dirname(currentDir);
-    if (parentDir === currentDir) return null;
-    currentDir = parentDir;
-  }
-}
-
-function discoverAgents(cwd: string, scope: AgentScope): AgentDiscoveryResult {
-  const projectAgentsDir = findNearestProjectAgentsDir(cwd);
-
-  const userAgents = scope === "project" ? [] : loadAgentsFromDir(PI_AGENT_DIR, "user");
-  const projectAgents = scope === "user" || !projectAgentsDir ? [] : loadAgentsFromDir(projectAgentsDir, "project");
-  const builtinAgents = loadAgentsFromDir(BUILTIN_AGENTS_DIR, "builtin");
-
-  const agentMap = new Map<string, AgentConfig>();
-
-  for (const agent of builtinAgents) agentMap.set(agent.name, agent);
-  for (const agent of userAgents) agentMap.set(agent.name, agent);
-  for (const agent of projectAgents) agentMap.set(agent.name, agent);
-
-  return { agents: Array.from(agentMap.values()), projectAgentsDir };
-}
-
-// ----- Agent installation (cdh setup) -----
-
-export function installAgents(): { installed: string[]; skipped: string[]; errors: string[] } {
-  const installed: string[] = [];
-  const skipped: string[] = [];
-  const errors: string[] = [];
-
-  const sourceDir = path.resolve(__dirname, "..", "agents");
-  if (!existsSync(sourceDir)) {
-    errors.push(`Agent source directory not found: ${sourceDir}`);
-    return { installed, skipped, errors };
-  }
-
-  mkdirSync(PI_AGENT_DIR, { recursive: true });
-
-  let files: string[];
-  try {
-    files = readdirSync(sourceDir);
-  } catch {
-    errors.push(`Failed to read agent source directory: ${sourceDir}`);
-    return { installed, skipped, errors };
-  }
-
-  for (const file of files) {
-    if (!file.endsWith(".md")) continue;
-
-    const sourcePath = path.join(sourceDir, file);
-    const content = readFileSync(sourcePath, "utf8");
-    const { frontmatter } = parseFrontmatter<Record<string, string>>(content);
-
-    if (!frontmatter.name) {
-      errors.push(`Invalid agent frontmatter in ${file}`);
-      continue;
-    }
-
-    const destPath = path.join(PI_AGENT_DIR, `cdh-${file}`);
-    const exists = existsSync(destPath);
-
-    if (exists) {
-      const existing = readFileSync(destPath, "utf8");
-      const { frontmatter: existingFrontmatter } = parseFrontmatter<Record<string, string>>(existing);
-      if (existingFrontmatter.name === frontmatter.name) {
-        skipped.push(frontmatter.name);
-        continue;
-      }
-    }
-
-    try {
-      writeFileSync(destPath, content, { encoding: "utf8", mode: 0o644 });
-      installed.push(frontmatter.name);
-    } catch {
-      errors.push(`Failed to write ${destPath}`);
-    }
-  }
-
-  return { installed, skipped, errors };
-}
-
-// ----- Types -----
-
-interface UsageStats {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-  cost: number;
-  contextTokens: number;
-  turns: number;
-}
-
-interface AgentResult {
-  agent: string;
-  agentSource: "user" | "project" | "builtin" | "unknown";
-  task: string;
-  exitCode: number;
-  messages: Message[];
-  stderr: string;
-  usage: UsageStats;
-  model?: string;
-  stopReason?: string;
-  errorMessage?: string;
-  step?: number;
-}
-
-interface OrchestratorDetails {
-  mode: "single" | "parallel" | "chain";
-  agentScope: AgentScope;
-  projectAgentsDir: string | null;
-  results: AgentResult[];
 }
 
 // ----- Helpers -----
@@ -267,7 +159,6 @@ async function runSingleAgent(
 
   const result: AgentResult = {
     agent: agent.name,
-    agentSource: agent.source,
     task,
     exitCode: 0,
     messages: [],
@@ -452,36 +343,24 @@ async function runChain(
 
 // ----- Extension -----
 
-const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
-  description: 'Which agent directories to use. Default: "user". Use "both" to include project-local agents.',
-  default: "user",
-});
-
 export default function orchestrator(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "orchestrate_run",
     label: "Orchestrate Agents",
     description: [
       "Delegate work to specialized subagents with isolated context.",
-      "Agents are discovered from ~/.pi/agent/agents/ (user) and .pi/agents/ (project).",
-      "Use agentScope to control which pool is used.",
+      "Six agents are loaded from the CDH package: spec-writer, concept-implementer, sync-implementer, test-writer, reviewer, scout.",
       "Modes: single (agent + task), chain (sequential with {previous} placeholder), parallel (fan out up to 4 agents).",
     ].join(" "),
     parameters: Type.Object({
       mode: Type.Union([Type.Literal("single"), Type.Literal("chain"), Type.Literal("parallel")]),
       tasks: Type.Array(Type.String(), { description: "Task descriptions, one per agent or step" }),
       agent: Type.String({
-        description: "Agent name to delegate to",
+        description: "Agent name: spec-writer, concept-implementer, sync-implementer, test-writer, reviewer, scout",
       }),
-      agentScope: Type.Optional(AgentScopeSchema),
-      confirmProjectAgents: Type.Optional(
-        Type.Boolean({ description: "Prompt before running project-local agents. Default: true.", default: true })
-      ),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const cwd = ctx.cwd ?? process.cwd();
-      const agentScope: AgentScope = params.agentScope ?? "user";
-      const confirmProjectAgents = params.confirmProjectAgents ?? true;
 
       const onUpdate = _onUpdate
         ? (msg: string) => _onUpdate({ content: [{ type: "text" as const, text: msg }], details: undefined })
@@ -495,40 +374,16 @@ export default function orchestrator(pi: ExtensionAPI): void {
       const orchestratorDir = path.join(cwd, config.paths.journal, "runs", runId, "orchestrate");
       mkdirSync(orchestratorDir, { recursive: true });
 
-      const discovery = discoverAgents(cwd, agentScope);
-      const agents = discovery.agents;
-
+      const agents = loadAgents();
       const agent = agents.find((a) => a.name === params.agent);
 
       if (!agent) {
-        const available = agents.map((a) => `${a.name} (${a.source})`).join(", ") || "none";
+        const available = agents.map((a) => a.name).join(", ") || "none";
         return {
           content: [{ type: "text", text: `Unknown agent: "${params.agent}". Available: ${available}` }],
-          details: {
-            mode: params.mode,
-            agentScope,
-            projectAgentsDir: discovery.projectAgentsDir,
-            results: [],
-          } as OrchestratorDetails,
+          details: { mode: params.mode, results: [] } as OrchestratorDetails,
           isError: true,
         };
-      }
-
-      if (agent.source === "project" && confirmProjectAgents && ctx.hasUI) {
-        const ok = await ctx.ui.confirm(
-          "Run project-local agent?",
-          `Agent: ${agent.name}\nSource: ${agent.filePath}\n\nProject agents are repo-controlled. Only continue for trusted repositories.`
-        );
-        if (!ok)
-          return {
-            content: [{ type: "text", text: "Canceled: project-local agent not approved." }],
-            details: {
-              mode: params.mode,
-              agentScope,
-              projectAgentsDir: discovery.projectAgentsDir,
-              results: [],
-            } as OrchestratorDetails,
-          };
       }
 
       let results: AgentResult[];
@@ -567,12 +422,10 @@ export default function orchestrator(pi: ExtensionAPI): void {
 
       const detail: OrchestratorDetails = {
         mode: params.mode,
-        agentScope,
-        projectAgentsDir: discovery.projectAgentsDir,
         results,
       };
 
-      const lines: string[] = [`Orchestration complete (${params.mode}, ${agentScope}):`, ""];
+      const lines: string[] = [`Orchestration complete (${params.mode}):`, ""];
 
       for (const result of results) {
         const status = isFailed(result) ? `FAIL${result.stopReason ? ` (${result.stopReason})` : ""}` : "OK";

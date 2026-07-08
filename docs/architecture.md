@@ -58,7 +58,7 @@ cdh/
 │   ├── gates.ts           # tool_call hook for R5 + bash screening
 │   ├── verification.ts    # agent_end hook + run_verification + record_decision tools
 │   ├── catalog.ts         # catalog_search/show/copy tools
-│   ├── orchestrator.ts    # orchestrate_run tool, agent discovery, subprocess spawning
+│   ├── orchestrator.ts    # orchestrate_run tool, loads agents from package
 │   ├── init.ts            # cdh_init tool
 │   └── spike-probes.ts    # WP0 pi API validation probes
 ├── agents/                # 6 agent spec markdown files
@@ -447,20 +447,11 @@ Registers `orchestrate_run` tool with three modes:
 - **`chain`**: Sequential pipeline — each step receives `{previous}` output placeholder
 - **`parallel`**: Fan out up to 4 concurrent agents on independent tasks
 
-Parameters: `mode`, `tasks`, `agent`, plus optional `agentScope` (`"user"`|`"project"`|`"both"`) and `confirmProjectAgents` (boolean, default `true`).
+Parameters: `mode`, `tasks`, `agent`.
 
-#### Agent Discovery (filesystem-based)
+#### Agent Discovery (package-builtin)
 
-Agents are discovered from markdown files with YAML frontmatter at two locations:
-
-| Scope | Path | Source |
-|-------|------|--------|
-| User | `~/.pi/agent/agents/*.md` | Loaded when `agentScope` is `"user"` or `"both"` |
-| Project | `.pi/agents/*.md` (walked up from cwd) | Loaded when `agentScope` is `"project"` or `"both"` |
-
-When `agentScope` is `"both"`, project agents override user agents with the same name.
-
-Six agents ship with CDH and are installed to `~/.pi/agent/agents/cdh-*.md` via `cdh setup`:
+Six agents ship in the CDH npm package as markdown files in `agents/`. They are loaded at runtime from `<package>/agents/` with a simple in-memory cache:
 
 | Agent | Tools | Mode |
 |-------|-------|------|
@@ -471,11 +462,15 @@ Six agents ship with CDH and are installed to `~/.pi/agent/agents/cdh-*.md` via 
 | reviewer | read, list_concepts, list_syncs, trace_sync, sync_graph, sync_diagnostics, read_design_doc, run_verification | read-only |
 | scout | read, list_concepts, describe_concept, list_syncs, trace_sync, sync_graph, sync_diagnostics, read_design_doc, catalog_search, catalog_show | read-only |
 
-Frontmatter supports `name`, `description`, `tools` (comma-separated), and optional `model` (for per-agent model override). Arbitrary user-created agents in `~/.pi/agent/agents/` or project-local `.pi/agents/` are discovered automatically — no code changes needed.
+Agent frontmatter supports `name`, `description`, `tools` (comma-separated), and optional `model` (for per-agent model override).
 
 #### Subprocess Model
 
 Agents run as isolated `pi --print --mode json --no-session` subprocesses with restricted `--tools` lists. If the agent frontmatter specifies a `model`, that model is passed via `--model`. Usage is tracked by parsing JSONL output for token counts, cost, model info. Journal entries (`agent_spawned`, `agent_finished`) include these stats.
+
+#### Project Context
+
+`cdh init` scaffolds an `AGENTS.md` file that tells the main pi agent about CDH conventions, available subagents, tool reference, and the preferred orchestration workflow.
 
 ### `extensions/init.ts` — Project Scaffolding
 
@@ -492,7 +487,6 @@ The `cdh` CLI provides 16 commands. Each command loads config and repo contract,
 | Command | Purpose |
 |---------|---------|
 | `cdh init` | Scaffold a new concept-design repo |
-| `cdh setup` | Install agent specs to `~/.pi/agent/agents/` |
 | `cdh doctor` | Check repo health (contract, dirs, specs, tests, journal) |
 | `cdh rules` | Run all rules (R1-R10), report hits |
 | `cdh verify --tier quick\|ship` | Run verification stages |
