@@ -29,8 +29,8 @@ const cwd = process.cwd();
 async function getContract(config: CdhConfig) {
   try {
     return (await loadRepoContract(cwd, config)).contract;
-  } catch {
-    console.error("Failed to load repo contract from design/index.json.");
+  } catch (err) {
+    console.error("Failed to load repo contract from design/index.json:", err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 }

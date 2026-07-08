@@ -98,7 +98,7 @@ export const defaultConfig: CdhConfig = {
   }
 };
 
-export interface LoadConfigOptions {
+interface LoadConfigOptions {
   globalPath?: string;
   projectPath?: string;
 }

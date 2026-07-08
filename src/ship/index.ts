@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { CdhConfig } from "../config.ts";
 
-export interface RunSnapshot {
+export interface ShipRunSnapshot {
   startRef: string;
   startStatus: string;
   preExistingDirty: string[];
@@ -30,7 +30,7 @@ function isGitRepo(cwd: string): boolean {
   return existsSync(path.join(cwd, ".git"));
 }
 
-export function captureSnapshot(cwd: string): RunSnapshot | null {
+export function captureSnapshot(cwd: string): ShipRunSnapshot | null {
   if (!isGitRepo(cwd)) return null;
 
   const refResult = runGit(cwd, ["rev-parse", "HEAD"]);
@@ -68,7 +68,7 @@ export function captureSnapshot(cwd: string): RunSnapshot | null {
   return { startRef, startStatus, preExistingDirty, preExistingStaged };
 }
 
-export function computeTouched(cwd: string, snapshot: RunSnapshot): TouchedResult {
+export function computeTouched(cwd: string, snapshot: ShipRunSnapshot): TouchedResult {
   const statusResult = runGit(cwd, ["status", "--porcelain"]);
   const touched: string[] = [];
   const preExistingDirty: string[] = [];
@@ -106,16 +106,16 @@ export function computeTouched(cwd: string, snapshot: RunSnapshot): TouchedResul
   };
 }
 
-export function isMergeInProgress(cwd: string): boolean {
+function isMergeInProgress(cwd: string): boolean {
   return existsSync(path.join(cwd, ".git", "MERGE_HEAD"));
 }
 
-export function isRebaseInProgress(cwd: string): boolean {
+function isRebaseInProgress(cwd: string): boolean {
   return existsSync(path.join(cwd, ".git", "rebase-merge")) ||
     existsSync(path.join(cwd, ".git", "rebase-apply"));
 }
 
-export interface ShipPreflightResult {
+interface ShipPreflightResult {
   ok: boolean;
   errors: string[];
   warnings: string[];
@@ -125,7 +125,7 @@ export interface ShipPreflightResult {
 
 export function runShipPreflight(
   cwd: string,
-  snapshot: RunSnapshot,
+  snapshot: ShipRunSnapshot,
   touched: TouchedResult
 ): ShipPreflightResult {
   const errors: string[] = [];

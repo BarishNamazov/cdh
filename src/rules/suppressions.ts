@@ -1,5 +1,5 @@
 import type { RuleHit } from "./types.ts";
-import type { MethodDeclaration, SourceFile } from "ts-morph";
+import type { SourceFile } from "ts-morph";
 
 export interface Suppression {
   rule: string;
@@ -50,7 +50,7 @@ export function scanSuppressions(
   return suppressions;
 }
 
-export function isSupressibleRule(rule: string): boolean {
+export function isSuppressibleRule(rule: string): boolean {
   return rule === "R2" || rule === "R3" || rule === "R4" || rule === "R10";
 }
 
@@ -84,7 +84,7 @@ export function applySuppressions(
   suppressions: Suppression[]
 ): RuleHit[] {
   return hits.map((hit) => {
-    if (!isSupressibleRule(hit.rule)) return hit;
+    if (!isSuppressibleRule(hit.rule)) return hit;
 
     const relevantSuppression = suppressions.find((suppression) => {
       if (suppression.rule !== hit.rule) return false;
@@ -110,7 +110,7 @@ export function applySuppressions(
   });
 }
 
-export function checkUnusedSuppressions(
+function checkUnusedSuppressions(
   suppressions: Suppression[],
   hits: RuleHit[]
 ): Omit<RuleHit, "suppressed">[] {

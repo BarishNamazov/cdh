@@ -33,7 +33,7 @@ export async function discoverConcepts(cwd: string, config: CdhConfig, contract:
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function conceptFromFile(
+function conceptFromFile(
   cwd: string,
   file: string,
   project: Project,
