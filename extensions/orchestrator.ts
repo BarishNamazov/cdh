@@ -3,10 +3,13 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { loadConfig } from "../src/config.ts";
 import { Journal } from "../src/journal/journal.ts";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ----- Agent filesystem discovery -----
 
@@ -61,7 +64,7 @@ export function installAgents(): { installed: string[]; skipped: string[]; error
   const skipped: string[] = [];
   const errors: string[] = [];
 
-  const sourceDir = path.resolve(import.meta.dir, "..", "agents");
+  const sourceDir = path.resolve(__dirname, "..", "agents");
   if (!existsSync(sourceDir)) {
     errors.push(`Agent source directory not found: ${sourceDir}`);
     return { installed, skipped, errors };

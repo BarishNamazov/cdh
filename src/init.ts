@@ -8,8 +8,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const TEMPLATES = path.resolve(import.meta.dir, "..", "templates");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TEMPLATES = path.resolve(__dirname, "..", "templates");
 
 export interface InitResult {
   created: string[];

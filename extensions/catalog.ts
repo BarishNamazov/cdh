@@ -1,13 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { copyCatalogConcept } from "../src/catalog-lib.ts";
 import { loadConfig } from "../src/config.ts";
 import { loadRepoContract } from "../src/repo-contract.ts";
 
-const BUILTIN_CATALOG = path.resolve(import.meta.dir, "..", "catalog", "concepts");
-const REGISTRY_PATH = path.resolve(import.meta.dir, "..", "catalog", "registry.json");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const BUILTIN_CATALOG = path.resolve(__dirname, "..", "catalog", "concepts");
+const REGISTRY_PATH = path.resolve(__dirname, "..", "catalog", "registry.json");
 
 interface RegistryEntry {
   id: string;
@@ -140,7 +143,7 @@ export default function catalog(pi: ExtensionAPI): void {
 
       try {
         const result = copyCatalogConcept(
-          path.resolve(import.meta.dir, "..", "catalog"),
+          path.resolve(__dirname, "..", "catalog"),
           cwd,
           entry,
           config,
