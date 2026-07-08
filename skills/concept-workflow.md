@@ -1,5 +1,6 @@
 ---
 label: Concept Workflow
+name: concept-workflow
 description: Step-by-step workflow for implementing new concepts in a CDH repo
 trigger: concept, new concept, implement concept
 tools: list_concepts, describe_concept, read_design_doc, spec_lint, catalog_search, catalog_copy

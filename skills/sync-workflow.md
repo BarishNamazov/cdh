@@ -1,5 +1,6 @@
 ---
 label: Sync Implementation Workflow
+name: sync-workflow
 description: Workflow for wiring synchronizations between concepts with the sync engine DSL
 trigger: sync, new sync, implement sync, synchronization
 tools: list_syncs, trace_sync, sync_graph, sync_diagnostics, read_design_doc

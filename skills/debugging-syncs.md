@@ -1,5 +1,6 @@
 ---
 label: Debugging Syncs
+name: debugging-syncs
 description: Techniques for diagnosing why syncs are not firing or producing unexpected results
 trigger: debug sync, sync error, sync not firing, sync broken
 tools: trace_sync, sync_graph, sync_diagnostics, list_syncs
