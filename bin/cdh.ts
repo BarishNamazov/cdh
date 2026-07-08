@@ -15,6 +15,7 @@ import { checkSpecSync, formatSpecDiff, autoSyncSpec } from "../src/tools/spec-s
 import { readDesignDoc, formatDesignDoc } from "../src/tools/design-doc.ts";
 import { buildSyncGraph, formatGraphReport, formatGraphJson, formatGraphMermaid, formatGraphDot } from "../src/tools/sync-graph.ts";
 import { runSyncDiagnostics, formatDiagnostics, formatDiagnosticsJson } from "../src/tools/sync-diagnostics.ts";
+import { captureSnapshot, computeTouched, runShipPreflight } from "../src/ship/index.ts";
 
 const [, , command, ...args] = Bun.argv;
 const cwd = process.cwd();
@@ -335,6 +336,79 @@ async function main(): Promise<void> {
       break;
     }
 
+    case "ship": {
+      const noReview = args.includes("--no-review");
+      const noCi = args.includes("--no-ci");
+
+      console.log("CDH Ship — preflight checks...\n");
+
+      const snapshot = captureSnapshot(cwd);
+      if (!snapshot) {
+        console.error("Not a git repository. Ship requires a git repository.");
+        process.exit(1);
+      }
+
+      const touched = computeTouched(cwd, snapshot);
+      const preflight = runShipPreflight(cwd, snapshot, touched);
+
+      if (!preflight.ok) {
+        for (const err of preflight.errors) {
+          console.error(`ERROR: ${err}`);
+        }
+        process.exit(1);
+      }
+
+      for (const warn of preflight.warnings) {
+        console.log(`WARN: ${warn}`);
+      }
+
+      console.log(`Touched files (${preflight.touched.length}):`);
+      for (const f of preflight.touched) {
+        console.log(`  ${f}`);
+      }
+
+      if (preflight.preExistingDirty.length > 0) {
+        console.log(`\nPre-existing dirty files excluded (${preflight.preExistingDirty.length}):`);
+        for (const f of preflight.preExistingDirty) {
+          console.log(`  ${f}`);
+        }
+      }
+
+      console.log("\nRunning ship-tier verification...\n");
+
+      const contract = await getContract(config);
+      const engine = createRuleEngine(cwd, config, contract);
+      const journal = new Journal(cwd, config);
+      journal.initRun(process.env as Record<string, string | undefined>);
+
+      const results = await runVerification({
+        cwd,
+        config,
+        contract,
+        ruleEngine: engine,
+        journal,
+        tier: "ship"
+      });
+
+      for (const result of results) {
+        const icon = result.status === "pass" ? "PASS"
+          : result.status === "skip" ? "SKIP"
+          : result.status === "warn" ? "WARN"
+          : "FAIL";
+        console.log(`  ${icon}  ${result.stage} (${result.durationMs}ms) — ${result.summary}`);
+      }
+
+      const failed = results.filter((r) => r.status === "fail");
+      if (failed.length > 0) {
+        console.log(`\n${failed.length} stage(s) failed. Ship aborted.`);
+        process.exit(1);
+      }
+
+      console.log("\nAll verification stages passed.");
+      console.log(`\nShip ready. Run 'cdh ship --confirm' to commit and branch.`);
+      break;
+    }
+
     case "init":
       console.log(`cdh ${command} is not implemented yet.`);
       break;
@@ -350,6 +424,7 @@ async function main(): Promise<void> {
         "  doctor             Check harness and repo health",
         "  rules              Run all rules and report violations",
         "  verify             Run verification stages (--tier quick|ship)",
+        "  ship               Preflight, verify, and ship changes (--no-review --no-ci)",
         "  trace <C.action>   Show all syncs involving a concept action",
         "  syncs              List all syncs (--concept <name> to filter)",
         "  sync-graph         Build and display sync graph (--format report|json|mermaid|dot)",
