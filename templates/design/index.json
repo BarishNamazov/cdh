@@ -1,6 +1,12 @@
 {
   "specsDir": "design/concepts",
-  "docs": {},
+  "docs": {
+    "concept-design-overview": "design/background/concept-design-overview.md",
+    "concept-spec-conventions": "design/background/concept-specifications.md",
+    "implementation-conventions": "design/background/implementing-concepts.md",
+    "sync-conventions": "design/background/implementing-synchronizations.md",
+    "testing-conventions": "design/background/testing-concepts.md"
+  },
   "helpers": {
     "testingModule": "@utils/testing.ts",
     "exports": [
@@ -14,6 +20,10 @@
   },
   "scripts": {
     "test": "bun test",
-    "typecheck": "bun run check"
+    "typecheck": "bun run check",
+    "start": "bun run start"
+  },
+  "health": {
+    "path": "/api/health"
   }
 }

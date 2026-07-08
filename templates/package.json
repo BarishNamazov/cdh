@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "test": "bun test",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "start": "bun run src/engine/server.ts"
   },
   "dependencies": {
     "@mit-sdg/sync-engine": "*"

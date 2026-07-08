@@ -11,7 +11,8 @@
     "baseUrl": ".",
     "paths": {
       "@utils/*": ["src/utils/*"],
-      "@concepts/*": ["src/concepts/*"]
+      "@concepts/*": ["src/concepts/*"],
+      "@engine/*": ["src/engine/*"]
     }
   },
   "include": ["src/**/*.ts"]
