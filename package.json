@@ -1,6 +1,6 @@
 {
   "name": "@mit-sdg/cdh",
-  "version": "0.1.11",
+  "version": "0.2.0",
   "description": "Concept Design Harness for OpenCode-powered concept-design repositories.",
   "type": "module",
   "private": false,
