@@ -2,56 +2,46 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import { type Static, Type } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
 
-const StringArray = Type.Array(Type.String());
-
-export const CdhConfigSchema = Type.Object({
-  paths: Type.Object({
-    concepts: Type.String(),
-    syncs: Type.String(),
-    designIndex: Type.String(),
-    journal: Type.String(),
-  }),
-  rules: Type.Object({
-    importAllowlist: Type.Object({ syncs: StringArray }),
-    helperMethodAllowlist: StringArray,
-  }),
-  testing: Type.Object({
-    errorAssertionPatterns: StringArray,
-  }),
-  verify: Type.Object({
-    onAgentEnd: StringArray,
-    onShipLocal: StringArray,
-    optionalStages: StringArray,
-    autofixRetries: Type.Optional(Type.Number()),
-    lineCoverageInfoThreshold: Type.Optional(Type.Number()),
-    syncDiagnostics: Type.String(),
-  }),
-  catalogPaths: StringArray,
-  ship: Type.Object({
-    confirm: Type.Union([Type.Literal("interactive"), Type.Literal("never"), Type.Literal("headless-auto")]),
-    branchPrefix: Type.String(),
-    review: Type.Boolean(),
-    push: Type.Boolean(),
-    createPr: Type.Boolean(),
-    ci: Type.Boolean(),
-  }),
-  ci: Type.Optional(
-    Type.Object({
-      provider: Type.String(),
-      workflow: Type.String(),
-    })
-  ),
-  frontend: Type.Optional(
-    Type.Object({
-      enabled: Type.Boolean(),
-    })
-  ),
-});
-
-export type CdhConfig = Static<typeof CdhConfigSchema>;
+export interface CdhConfig {
+  paths: {
+    concepts: string;
+    syncs: string;
+    designIndex: string;
+    journal: string;
+  };
+  rules: {
+    importAllowlist: { syncs: string[] };
+    helperMethodAllowlist: string[];
+  };
+  testing: {
+    errorAssertionPatterns: string[];
+  };
+  verify: {
+    onAgentEnd: string[];
+    onShipLocal: string[];
+    optionalStages: string[];
+    autofixRetries?: number;
+    lineCoverageInfoThreshold?: number;
+    syncDiagnostics: string;
+  };
+  catalogPaths: string[];
+  ship: {
+    confirm: "interactive" | "never" | "headless-auto";
+    branchPrefix: string;
+    review: boolean;
+    push: boolean;
+    createPr: boolean;
+    ci: boolean;
+  };
+  ci?: {
+    provider: string;
+    workflow: string;
+  };
+  frontend?: {
+    enabled: boolean;
+  };
+}
 
 export const defaultConfig: CdhConfig = {
   paths: {
@@ -73,11 +63,11 @@ export const defaultConfig: CdhConfig = {
       "journal-health",
       "typecheck",
       "rules:all",
-      "tests:changed",
       "tests:all",
       "surface-coverage",
       "sync-tests",
       "legibility",
+      "sync-diagnostics",
     ],
     optionalStages: ["smoke"],
     syncDiagnostics: "warn",
@@ -106,12 +96,12 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     await readJsonIfExists(projectPath)
   );
 
-  if (!Value.Check(CdhConfigSchema, merged)) {
-    const errors = [...Value.Errors(CdhConfigSchema, merged)].map((error) => `${error.path}: ${error.message}`);
+  const errors = validateConfig(merged);
+  if (errors.length > 0) {
     throw new Error(`Invalid CDH config:\n${errors.join("\n")}`);
   }
 
-  return merged;
+  return merged as CdhConfig;
 }
 
 async function readJsonIfExists(filePath: string): Promise<unknown> {
@@ -121,6 +111,76 @@ async function readJsonIfExists(filePath: string): Promise<unknown> {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validateConfig(value: unknown): string[] {
+  const errors: string[] = [];
+  if (!isRecord(value)) return [": Expected object"];
+
+  requireString(value, "/paths/concepts", errors);
+  requireString(value, "/paths/syncs", errors);
+  requireString(value, "/paths/designIndex", errors);
+  requireString(value, "/paths/journal", errors);
+  requireStringArray(value, "/rules/importAllowlist/syncs", errors);
+  requireStringArray(value, "/rules/helperMethodAllowlist", errors);
+  requireStringArray(value, "/testing/errorAssertionPatterns", errors);
+  requireStringArray(value, "/verify/onAgentEnd", errors);
+  requireStringArray(value, "/verify/onShipLocal", errors);
+  requireStringArray(value, "/verify/optionalStages", errors);
+  requireOptionalNumber(value, "/verify/autofixRetries", errors);
+  requireOptionalNumber(value, "/verify/lineCoverageInfoThreshold", errors);
+  requireString(value, "/verify/syncDiagnostics", errors);
+  requireStringArray(value, "/catalogPaths", errors);
+  requireString(value, "/ship/branchPrefix", errors);
+  requireBoolean(value, "/ship/review", errors);
+  requireBoolean(value, "/ship/push", errors);
+  requireBoolean(value, "/ship/createPr", errors);
+  requireBoolean(value, "/ship/ci", errors);
+
+  const confirm = getPath(value, "/ship/confirm");
+  if (confirm !== "interactive" && confirm !== "never" && confirm !== "headless-auto") {
+    errors.push("/ship/confirm: Expected one of interactive, never, headless-auto");
+  }
+
+  const ci = value.ci;
+  if (ci !== undefined) {
+    requireString(value, "/ci/provider", errors);
+    requireString(value, "/ci/workflow", errors);
+  }
+
+  const frontend = value.frontend;
+  if (frontend !== undefined) {
+    requireBoolean(value, "/frontend/enabled", errors);
+  }
+
+  return errors;
+}
+
+function requireString(root: Record<string, unknown>, pointer: string, errors: string[]): void {
+  if (typeof getPath(root, pointer) !== "string") errors.push(`${pointer}: Expected string`);
+}
+
+function requireBoolean(root: Record<string, unknown>, pointer: string, errors: string[]): void {
+  if (typeof getPath(root, pointer) !== "boolean") errors.push(`${pointer}: Expected boolean`);
+}
+
+function requireOptionalNumber(root: Record<string, unknown>, pointer: string, errors: string[]): void {
+  const value = getPath(root, pointer);
+  if (value !== undefined && typeof value !== "number") errors.push(`${pointer}: Expected number`);
+}
+
+function requireStringArray(root: Record<string, unknown>, pointer: string, errors: string[]): void {
+  const value = getPath(root, pointer);
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
+    errors.push(`${pointer}: Expected string array`);
+  }
+}
+
+function getPath(root: Record<string, unknown>, pointer: string): unknown {
+  return pointer
+    .split("/")
+    .filter(Boolean)
+    .reduce<unknown>((current, part) => (isRecord(current) ? current[part] : undefined), root);
 }
 
 export function deepMerge<T>(base: T, override: unknown): T {

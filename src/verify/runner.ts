@@ -2,15 +2,7 @@ import type { CdhConfig } from "../config.ts";
 import type { Journal } from "../journal/journal.ts";
 import type { RepoContract } from "../repo-contract.ts";
 import type { RuleEngine } from "../rules/types.ts";
-import {
-  journalHealthStage,
-  legibilityStage,
-  rulesStage,
-  surfaceCoverageStage,
-  syncDiagnosticsStage,
-  testStage,
-  typecheckStage,
-} from "./stages.ts";
+import { buildStagePlan } from "./stage-registry.ts";
 import type { StageContext, StageFn, StageResult } from "./types.ts";
 
 export interface RunVerificationOptions {
@@ -29,20 +21,7 @@ export async function runVerification(options: RunVerificationOptions): Promise<
   const { cwd, config, contract, ruleEngine, journal, tier } = options;
   const ctx: StageContext = { cwd, config, contract, ruleEngine, journal, tier };
 
-  const stageList: [string, StageFn][] = [];
-
-  if (tier === "quick") {
-    stageList.push(["typecheck", typecheckStage]);
-    stageList.push(["rules:all", (ctx) => rulesStage(ctx, "all")]);
-  } else {
-    stageList.push(["journal-health", journalHealthStage]);
-    stageList.push(["typecheck", typecheckStage]);
-    stageList.push(["rules:all", (ctx) => rulesStage(ctx, "all")]);
-    stageList.push(["tests:all", (ctx) => testStage(ctx, "all")]);
-    stageList.push(["surface-coverage", surfaceCoverageStage]);
-    stageList.push(["legibility", legibilityStage]);
-    stageList.push(["sync-diagnostics", syncDiagnosticsStage]);
-  }
+  const stageList: [string, StageFn][] = buildStagePlan(config, tier, options.stages);
 
   const stageNames = stageList.map(([name]) => name);
   journal.emitVerificationStarted(tier, stageNames);

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = path.resolve(__dirname, "..", "templates");
+const OPENCODE_INTEGRATION = path.resolve(__dirname, "..", ".opencode");
 
 export interface InitResult {
   created: string[];
@@ -84,6 +85,9 @@ export function initProject(cwd: string): InitResult {
   }
 
   copyDir(TEMPLATES, cwd);
+  for (const dir of ["agents", "commands"]) {
+    copyDir(path.join(OPENCODE_INTEGRATION, dir), path.join(cwd, ".opencode", dir));
+  }
 
   return { created, skipped, errors };
 }

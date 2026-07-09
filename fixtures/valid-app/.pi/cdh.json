@@ -1,8 +1,0 @@
-{
-  "paths": {
-    "concepts": "src/concepts",
-    "syncs": "src/syncs",
-    "designIndex": "design/index.json",
-    "journal": "design/journal"
-  }
-}

@@ -49,6 +49,26 @@ describe("readDesignDoc", () => {
       expect(result.error).toContain("architecture");
     }
   });
+
+  test("falls back to built-in background docs when the repo contract omits a key", () => {
+    const result = readDesignDoc(
+      validApp,
+      {
+        specsDir: "design/concepts",
+        docs: {},
+        helpers: { testingModule: "@utils/testing.ts", exports: [] },
+        scripts: { test: "bun test", typecheck: "bun run check", start: "bun run start" },
+        health: { path: "/health" },
+      },
+      "deterministic-workflows"
+    );
+
+    expect("content" in result).toBe(true);
+    if ("content" in result) {
+      expect(result.content).toContain("Deterministic Agent Workflows");
+      expect(result.path).toBe("deterministic-agent-workflows.md");
+    }
+  });
 });
 
 describe("formatDesignDoc", () => {

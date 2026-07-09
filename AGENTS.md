@@ -30,6 +30,7 @@ OpenCode can delegate work to specialized CDH subagents via the Task tool:
 
 ## Tool Reference
 
+- `workflow_context` — Build deterministic workflow context from static docs and dynamic repo state
 - `list_concepts` / `describe_concept` — Inspect concept surfaces
 - `list_syncs` / `trace_sync` / `sync_graph` / `sync_diagnostics` — Inspect sync relationships
 - `read_design_doc` — Read CDH design convention docs (concept specs, sync patterns, testing)
@@ -38,10 +39,6 @@ OpenCode can delegate work to specialized CDH subagents via the Task tool:
 - `record_decision` — Log design decisions to the journal
 - `spec_lint` — Check concept spec matches code surface
 - `cdh_init` — Scaffold a new concept-design repo
-
-## Skills
-
-Available skills (loaded on-demand): `concept-workflow`, `sync-workflow`, `debugging-syncs`, `frontend-shadcn`
 
 ## Configuration
 

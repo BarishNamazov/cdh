@@ -13,6 +13,7 @@ Explore and report. Read-only — do NOT edit, write, delete, or execute command
 
 ## Capabilities
 
+- Assemble deterministic context: `workflow_context` for concept, sync, review, test, or debug-sync work
 - Trace action flows: `trace_sync Concept.action` to see which syncs react to or produce an action
 - Map concept relationships: `sync_graph` to visualize dependencies
 - Survey architecture: `list_concepts` + `describe_concept` for concept surfaces

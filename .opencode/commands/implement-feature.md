@@ -6,7 +6,7 @@ Implement a feature across concepts, syncs, and tests. This is a full-cycle work
 
 ## Instructions
 
-1. Understand the feature: read design docs (`architecture`, `concept-design-overview`).
+1. Call `workflow_context` with workflow `concept` or `sync` depending on the main change, then read extra docs only if needed.
 2. Identify affected concepts with `list_concepts` and `describe_concept`.
 3. Check the sync graph with `sync_graph` and `trace_sync` on affected actions.
 4. Implement changes:

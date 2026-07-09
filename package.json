@@ -7,6 +7,12 @@
   "bin": {
     "cdh": "./bin/cdh.js"
   },
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./opencode/*": "./.opencode/*",
+    "./package.json": "./package.json"
+  },
   "files": [
     "bin",
     "src",
@@ -30,7 +36,8 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@sinclair/typebox": "0.34.49"
+    "@opencode-ai/plugin": "1.17.16",
+    "ts-morph": "27.0.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
@@ -38,8 +45,6 @@
     "typescript": "5.9.3"
   },
   "peerDependencies": {
-    "@mit-sdg/sync-engine": "*",
-    "@opencode-ai/plugin": "*",
-    "zod": "^3"
+    "@mit-sdg/sync-engine": "*"
   }
 }

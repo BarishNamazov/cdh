@@ -1,5 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import type { JournalEntry } from "./types.ts";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 50;
@@ -16,33 +17,16 @@ export class JsonlWriter {
     this.seq = this.countExistingLines();
   }
 
-  write(data: Record<string, unknown>): void {
+  writeEntry(entry: JournalEntry): void {
     if (this.degraded) return;
 
-    const line = JSON.stringify(data);
-    if (!line.endsWith("\n")) {
-      throw new Error("JSONL line must end with newline");
-    }
-
-    if (this.tryWrite(line)) {
-      this.seq++;
+    if (this.tryWrite(`${JSON.stringify(entry)}\n`)) {
+      this.seq = Math.max(this.seq, entry.seq);
     }
   }
 
-  writeEvent(eventType: string, data: Record<string, unknown>, runId: string): void {
-    if (this.degraded) return;
-
-    const entry = {
-      runId,
-      seq: this.seq + 1,
-      ts: new Date().toISOString(),
-      type: eventType,
-      ...data,
-    };
-
-    if (this.tryWrite(`${JSON.stringify(entry)}\n`)) {
-      this.seq++;
-    }
+  nextSequence(): number {
+    return this.seq + 1;
   }
 
   private tryWrite(line: string): boolean {
@@ -66,10 +50,6 @@ export class JsonlWriter {
 
   markDegraded(): void {
     this.degraded = true;
-  }
-
-  getSequence(): number {
-    return this.seq;
   }
 
   private countExistingLines(): number {

@@ -18,11 +18,11 @@
       "journal-health",
       "typecheck",
       "rules:all",
-      "tests:changed",
       "tests:all",
       "surface-coverage",
       "sync-tests",
-      "legibility"
+      "legibility",
+      "sync-diagnostics"
     ],
     "optionalStages": ["smoke"],
     "syncDiagnostics": "warn"

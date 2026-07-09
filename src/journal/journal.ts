@@ -45,7 +45,7 @@ export class Journal {
     const event: CdhEvent = { type, data } as CdhEvent;
     const entry: JournalEntry = {
       runId: this.runId ?? "unknown",
-      seq: this.writer?.getSequence() ?? this.events.length,
+      seq: this.writer?.nextSequence() ?? this.events.length + 1,
       ts: new Date().toISOString(),
       event,
     };
@@ -54,7 +54,7 @@ export class Journal {
 
     if (this.writer && !this.writer.isDegraded()) {
       try {
-        this.writer.writeEvent(type, { ...data }, this.runId ?? "unknown");
+        this.writer.writeEntry(entry);
       } catch {
         this.degraded = true;
       }

@@ -1,31 +1,22 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import {
+  designDocPathForKey,
+  getDesignDocLead,
+  listDesignDocKeys,
+  readResolvedDesignDoc,
+  resolveDesignDoc,
+} from "../background-docs.ts";
 import type { RepoContract } from "../repo-contract.ts";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const HARNESS_BACKGROUND = path.resolve(__dirname, "..", "..", "design", "background");
-
-export function listDocs(contract: RepoContract): string {
-  const keys = Object.keys(contract.docs).sort();
+export function listDocs(contract: RepoContract, cwd: string = process.cwd()): string {
+  const keys = listDesignDocKeys(contract.docs);
   if (keys.length === 0) return "No design documents available.";
 
   const lines: string[] = ["Available design documents:"];
 
   for (const key of keys) {
-    const docPath = contract.docs[key];
+    const docPath = designDocPathForKey(contract.docs, key);
     if (!docPath) continue;
-    const resolved = path.resolve(HARNESS_BACKGROUND, path.basename(docPath));
-    let firstLine = "";
-    try {
-      if (existsSync(resolved)) {
-        const content = readFileSync(resolved, "utf-8");
-        firstLine = content.split("\n").find((l) => l.trim() && !l.startsWith("#")) ?? "";
-        firstLine = firstLine.trim().slice(0, 80);
-      }
-    } catch {
-      /* skip */
-    }
+    const firstLine = getDesignDocLead(cwd, docPath);
     lines.push(`- ${key}: ${firstLine || "(no description)"}`);
   }
 
@@ -37,21 +28,18 @@ export function readDesignDoc(
   contract: RepoContract,
   key: string
 ): { content: string; path: string } | { error: string } {
-  const docPath = contract.docs[key];
+  const docPath = designDocPathForKey(contract.docs, key);
   if (!docPath) {
-    const keys = Object.keys(contract.docs).sort().join(", ");
+    const keys = listDesignDocKeys(contract.docs).join(", ");
     return { error: `Unknown document key '${key}'. Available keys: ${keys}` };
   }
 
-  const harnessPath = path.resolve(HARNESS_BACKGROUND, path.basename(docPath));
-  const projectPath = path.resolve(cwd, docPath);
-
-  const resolved = existsSync(harnessPath) ? harnessPath : projectPath;
-  if (!existsSync(resolved)) {
+  const resolved = resolveDesignDoc(cwd, docPath);
+  if (!resolved) {
     return { error: `Document not found: ${docPath}` };
   }
 
-  const content = readFileSync(resolved, "utf8");
+  const content = readResolvedDesignDoc(resolved);
   return { content, path: docPath };
 }
 

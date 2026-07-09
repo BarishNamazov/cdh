@@ -5,7 +5,10 @@
     "concept-spec-conventions": "concept-specifications.md",
     "implementation-conventions": "implementing-concepts.md",
     "sync-conventions": "implementing-synchronizations.md",
-    "testing-conventions": "testing-concepts.md"
+    "testing-conventions": "testing-concepts.md",
+    "deterministic-workflows": "deterministic-agent-workflows.md",
+    "journal-and-verification": "journal-and-verification.md",
+    "sync-testing-diagnostics": "sync-testing-and-diagnostics.md"
   },
   "helpers": {
     "testingModule": "@utils/testing.ts",

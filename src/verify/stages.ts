@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { discoverSyncs } from "../repo-model/syncs.ts";
 import { runSyncDiagnostics } from "../tools/sync-diagnostics.ts";
 import type { StageContext, StageResult } from "./types.ts";
 
@@ -231,5 +232,36 @@ export async function syncDiagnosticsStage(ctx: StageContext): Promise<StageResu
     status,
     durationMs: Date.now() - start,
     summary: `${warns.length} warning(s), ${infos.length} info(s) across ${report.syncs} sync(s).`,
+  };
+}
+
+export async function syncTestsStage(ctx: StageContext): Promise<StageResult> {
+  const start = Date.now();
+  const syncs = await discoverSyncs(ctx.cwd, ctx.config);
+  const missing = syncs.filter((sync) => !sync.testPath).map((sync) => path.relative(ctx.cwd, sync.file));
+
+  if (syncs.length === 0) {
+    return {
+      stage: "sync-tests",
+      status: "skip",
+      durationMs: Date.now() - start,
+      summary: "No sync files found.",
+    };
+  }
+
+  if (missing.length > 0) {
+    return {
+      stage: "sync-tests",
+      status: "fail",
+      durationMs: Date.now() - start,
+      summary: `${missing.length} sync file(s) lack sibling tests: ${missing.join(", ")}`,
+    };
+  }
+
+  return {
+    stage: "sync-tests",
+    status: "pass",
+    durationMs: Date.now() - start,
+    summary: `${syncs.length} sync file(s) have sibling tests. R9 shape is checked by rules:all.`,
   };
 }

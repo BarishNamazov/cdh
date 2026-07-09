@@ -27,6 +27,7 @@ import {
   formatGraphReport,
 } from "../src/tools/sync-graph.ts";
 import { formatTraceResult, traceSyncAction } from "../src/tools/trace-sync.ts";
+import { buildWorkflowContext, WORKFLOW_KINDS, type WorkflowKind } from "../src/tools/workflow-context.ts";
 import { formatStageResults } from "../src/verify/format.ts";
 import { runVerification } from "../src/verify/runner.ts";
 
@@ -54,6 +55,7 @@ function showCommandHelp(cmd: string | undefined): void {
         "  spec-check <name>  Check if concept spec matches code surface",
         "  spec-sync <name>   Update spec to match code (--dry-run to preview)",
         "  doc <key>          Read a design document (convention doc)",
+        "  context <workflow> Build deterministic workflow context for agents",
         "",
         "Options:",
         "  --tier             quick (default) or ship",
@@ -169,6 +171,17 @@ function showCommandHelp(cmd: string | undefined): void {
     case "doc":
       console.log(
         "Usage: cdh doc <key>\n\nRead a design document by its key from design/index.json docs.\nExample: cdh doc testing-conventions"
+      );
+      break;
+    case "context":
+      console.log(
+        [
+          "Usage: cdh context <workflow> [--concept <name>] [--action <Concept.action>] [--no-docs]",
+          "",
+          `Workflows: ${WORKFLOW_KINDS.join(", ")}`,
+          "",
+          "Build deterministic prompt context from static background docs plus dynamic repo state.",
+        ].join("\n")
       );
       break;
     case "catalog":
@@ -409,6 +422,24 @@ async function main(): Promise<void> {
       console.log(formatDesignDoc(result));
 
       if ("error" in result) process.exit(1);
+      break;
+    }
+
+    case "context": {
+      const workflow = args[0] as WorkflowKind | undefined;
+      if (!workflow || !WORKFLOW_KINDS.includes(workflow)) {
+        console.error("Usage: cdh context <workflow> [--concept <name>] [--action <Concept.action>] [--no-docs]");
+        console.error(`Workflows: ${WORKFLOW_KINDS.join(", ")}`);
+        process.exit(1);
+      }
+
+      const conceptIndex = args.indexOf("--concept");
+      const concept = conceptIndex >= 0 && args[conceptIndex + 1] ? args[conceptIndex + 1] : undefined;
+      const actions = args.flatMap((arg, index) => (arg === "--action" && args[index + 1] ? [args[index + 1]!] : []));
+      const includeDocs = !args.includes("--no-docs");
+      const contract = await getContract(config);
+
+      console.log(await buildWorkflowContext(cwd, config, contract, { workflow, concept, actions, includeDocs }));
       break;
     }
 

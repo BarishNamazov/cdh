@@ -10,8 +10,8 @@ Implement syncs at `src/syncs/<name>.sync.ts`.
 
 ## Workflow
 
-1. Call `trace_sync` on the when and then actions (baseline)
-2. Call `sync_graph` to see current relationships
+1. Call `workflow_context` with workflow `sync` and all known when/then action refs.
+2. Call `trace_sync` on any additional when and then actions you discover.
 3. Implement the sync using `@mit-sdg/sync-engine/engine`
 4. Create sibling test file with `setupSyncTest`
 5. Call `trace_sync` again, then `sync_diagnostics`

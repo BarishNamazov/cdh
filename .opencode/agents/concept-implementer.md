@@ -38,8 +38,8 @@ const results = concept._myQuery({ param: "value" });
 
 ## Workflow
 
-1. Call `describe_concept <Name>` to see the spec and existing surface
-2. Call `read_design_doc` with key `implementation-conventions`
+1. Call `workflow_context` with workflow `concept` and the target concept name.
+2. Call `describe_concept <Name>` if you need a focused surface/spec refresh.
 3. Implement the class in `src/concepts/<Name>/<Name>Concept.ts`
 4. Write colocated tests in `src/concepts/<Name>/<Name>Concept.test.ts`
 5. Run `run_verification` with tier `quick`

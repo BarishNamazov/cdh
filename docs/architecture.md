@@ -1,6 +1,6 @@
 # CDH Architecture
 
-CDH is a harness that turns a directory into a **concept-design repo**. It runs as both a standalone CLI (`cdh`) and an OpenCode integration (tools, subagents, plugins).
+CDH is a harness that turns a directory into a **concept-design repo**. It runs as both a standalone CLI (`cdh`) and an OpenCode integration (tools, subagents, commands, and plugins).
 
 ## Core Principle
 
@@ -9,14 +9,14 @@ CDH **never imports target-repo code**. It inspects repos through config, AST an
 ## Layers
 
 ```
-  .opencode/          ← OpenCode integration (tools, agents, plugins, skills, commands)
+  .opencode/          ← OpenCode integration (tools, agents, plugins, commands)
       │
-  bin/cdh.ts          ← CLI entrypoint (16 commands)
+  bin/cdh.ts          ← CLI entrypoint (17 commands)
       │
   src/                ← Core business logic (OpenCode-agnostic)
-   ├── config.ts      ← TypeBox schema, deep-merge loader
+   ├── config.ts      ← config defaults, deep-merge loader, explicit validation
    ├── rules/         ← R1-R10 rule engine
-   ├── verify/        ← 7-stage verification pipeline
+   ├── verify/        ← deterministic verification stage registry
    ├── tools/         ← Introspection functions (concepts, syncs, docs, catalog)
    ├── journal/       ← JSONL event journal + reports
    ├── ship/          ← Git snapshot, commit, branch, push, PR
@@ -27,7 +27,7 @@ CDH **never imports target-repo code**. It inspects repos through config, AST an
 ## Key Modules
 
 ### Config (`src/config.ts`)
-Three-layer merge: defaults → `~/.opencode/cdh.json` → `.opencode/cdh.json`. Validated with TypeBox at load time.
+Three-layer merge: defaults → `~/.opencode/cdh.json` → `.opencode/cdh.json`. Validated with small explicit validators at load time.
 
 ### Rules (`src/rules/rule-engine.ts`)
 | R# | Rule | Severity |
@@ -43,31 +43,31 @@ Three-layer merge: defaults → `~/.opencode/cdh.json` → `.opencode/cdh.json`.
 | R9 | Sync tests use `setupSyncTest` + positive/negative | FAIL-SHIP |
 | R10 | Multi-action tests call `trace()` | FAIL-SHIP |
 
-### Verification (`src/verify/runner.ts`)
-Two tiers:
-- **quick**: typecheck + rules for changed files (runs on every agent turn via plugin)
-- **ship**: journal-health, typecheck, rules:all, tests:all, surface-coverage, legibility, sync-diagnostics (runs before `cdh ship`)
+### Verification (`src/verify/`)
+Verification is a deterministic stage registry. Config selects stage names:
+- **quick**: `verify.onAgentEnd`, run by the OpenCode idle plugin and `run_verification` tier `quick`
+- **ship**: `verify.onShipLocal`, run by `run_verification` tier `ship` and `cdh ship`
+
+Unknown stage names fail explicitly instead of being ignored.
 
 ### Ship (`src/ship/`)
 `cdh ship --confirm` runs: preflight → verify(ship) → commit → branch → push → PR. Only stages files touched during the current session. Pre-existing dirty files are excluded.
 
 ### Journal (`src/journal/`)
-Append-only JSONL event log. Records: task_started, decision, verification_stage, agent_*, gate_blocked, rule_warning, suppression. Used for audit trails and run reports.
+Append-only JSONL event log. Each line is a typed `JournalEntry`: `{ runId, seq, ts, event: { type, data } }`. Records task starts, decisions, verification stages, rule warnings, catalog copies, ship events, and cost snapshots.
 
 ### Catalog (`src/catalog-lib.ts`)
 Built-in concept library at `catalog/`. `catalog copy` renames and copies concepts into the target repo, updating imports and design/index.json.
 
 ## OpenCode Integration (`.opencode/`)
 
-| Directory | Contents |
-|-----------|----------|
-| `tools/` | 14 custom tools (TypeBox→Zod, use `@/` path alias) |
+| Surface | Contents |
+|---------|----------|
+| package plugin | `@mit-sdg/cdh` registers tools, including `workflow_context`, plus agent-end verification |
 | `agents/` | 6 subagents (Markdown with `mode: subagent` frontmatter) |
-| `plugins/` | Verification plugin (session.idle → auto-verify) |
 | `commands/` | 7 custom commands (`/new-concept`, `/review`, `/ship`, etc.) |
-| `skills/` | 4 skills (concept-workflow, sync-workflow, debugging-syncs, frontend-shadcn) |
 
-Subagents are invoked via OpenCode's native Task tool. Reviewer and scout are locked read-only via permission config. All subagents reference tools from `.opencode/tools/` and skills from `.opencode/skills/`.
+Subagents are invoked via OpenCode's native Task tool. Reviewer and scout are locked read-only via permission config. All workflow guidance comes from deterministic tools and versioned background docs, not OpenCode skills.
 
 ## Technology Stack
 
@@ -76,7 +76,7 @@ Subagents are invoked via OpenCode's native Task tool. Reviewer and scout are lo
 | Runtime | Bun |
 | Language | TypeScript ES2023 (strict) |
 | AST analysis | ts-morph 27.x |
-| Schema validation | @sinclair/typebox 0.34.x |
+| Schema validation | Explicit TypeScript validators |
 | Sync engine | @mit-sdg/sync-engine 0.1.x |
 | Agent platform | OpenCode (native subagents + permissions) |
 | Linting | Biome |

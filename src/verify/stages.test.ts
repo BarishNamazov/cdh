@@ -3,7 +3,7 @@ import type { CdhConfig } from "../config.ts";
 import type { Journal } from "../journal/journal.ts";
 import type { RepoContract } from "../repo-contract.ts";
 import type { RuleEngine, RuleHit } from "../rules/types.ts";
-import { journalHealthStage, rulesStage, syncDiagnosticsStage } from "./stages.ts";
+import { journalHealthStage, rulesStage, syncDiagnosticsStage, syncTestsStage } from "./stages.ts";
 import type { StageContext } from "./types.ts";
 
 function baseConfig(overrides: Partial<CdhConfig["verify"]> = {}): CdhConfig {
@@ -115,6 +115,16 @@ describe("journalHealthStage", () => {
     expect(result.stage).toBe("journal-health");
     expect(result.status).toBe("fail");
     expect(result.summary).toBe("Journal is degraded; event persistence may be lost.");
+  });
+});
+
+describe("syncTestsStage", () => {
+  test("skips when no sync files exist", async () => {
+    const result = await syncTestsStage(makeContext());
+
+    expect(result.stage).toBe("sync-tests");
+    expect(result.status).toBe("skip");
+    expect(result.summary).toBe("No sync files found.");
   });
 });
 

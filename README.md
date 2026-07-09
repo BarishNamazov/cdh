@@ -31,17 +31,17 @@ cdh ship        # verify + commit + branch + push + PR
 ## How It Works
 
 CDH is both an **OpenCode package** and a **standalone CLI**. When OpenCode starts in a
-CDH-initialized repo, it auto-loads CDH tools that add 14+ agent tools:
+CDH-initialized repo, it auto-loads CDH tools that add deterministic agent tools:
 
 ```
-opencode starts → loads .opencode/tools/ → loads .opencode/agents/ →
-  agent gets: list_concepts, describe_concept, list_syncs, trace_sync,
+opencode starts → loads plugin @mit-sdg/cdh + .opencode/agents/ →
+  agent gets: workflow_context, list_concepts, describe_concept, list_syncs, trace_sync,
               sync_graph, sync_diagnostics, read_design_doc, run_verification,
               catalog_search, catalog_copy, cdh_init, record_decision
 ```
 
 **Single-agent mode** (default): the agent uses all CDH tools directly. Say
-_"build a todo app with labeling and comments"_ and it will read the design docs,
+_"build a todo app with labeling and comments"_ and it will call `workflow_context`, read the design docs,
 create specs, implement concepts, wire up syncs with `@mit-sdg/sync-engine`, write
 tests, and run verification — all in one session.
 
@@ -99,6 +99,7 @@ cdh sync-graph --format mermaid|dot|json|report   # Visualize the sync graph
 cdh sync-diagnostics                               # Warnings, missing tests, bad patterns
 
 cdh doc <key>               # Read a background doc (e.g. sync-conventions)
+cdh context <workflow>      # Build deterministic workflow context
 
 cdh catalog search <q>      # Search built-in concept catalog
 cdh catalog show <Name>     # Inspect a catalog concept
@@ -130,7 +131,7 @@ or prevent shipping (FAIL-SHIP):
 `cdh ship` runs a strict pipeline before touching git:
 
 1. **Preflight** — repo check, merge/rebase detection, exclude pre-existing dirty files
-2. **Verify** — all ship-tier stages must pass (journal-health, typecheck, rules, tests, surface-coverage, legibility, sync-diagnostics)
+2. **Verify** — all configured ship-tier stages must pass (journal-health, typecheck, rules, tests, surface-coverage, sync-tests, legibility, sync-diagnostics)
 3. **Commit** — stages only changed files, includes `Cdh-Run: <runId>` trailer
 4. **Branch** — `cdh/<runId>`, suffix on collision
 5. **Push/PR** — controlled by config (`.opencode/cdh.json` `ship.push`, `ship.createPr`)
@@ -161,10 +162,7 @@ my-app/
 │   │   ├── test-writer.md
 │   │   ├── reviewer.md
 │   │   └── scout.md
-│   ├── tools/                     # CDH custom tools
-│   ├── plugins/                   # CDH plugins
-│   ├── commands/                  # Custom commands
-│   └── skills/                    # Reusable skill workflows
+│   └── commands/                  # Custom commands
 ├── .gitignore
 ├── package.json
 ├── tsconfig.json
@@ -172,12 +170,6 @@ my-app/
 │   ├── index.json               # Repo contract (doc refs, helpers, scripts)
 │   ├── concepts/                # Concept specs (*.md)
 │   │   └── greeting.md
-│   ├── background/              # Convention docs (agents read these)
-│   │   ├── concept-design-overview.md
-│   │   ├── concept-specifications.md
-│   │   ├── implementing-concepts.md
-│   │   ├── implementing-synchronizations.md
-│   │   └── testing-concepts.md
 │   └── journal/                 # Run history (auto-generated)
 └── src/
     ├── concepts/<Name>/         # Concept class + tests
@@ -198,14 +190,16 @@ my-app/
 |-------|------|
 | `journal-health` — event persistence working | ship |
 | `typecheck` — `tsc --noEmit` passes | quick, ship |
+| `rules:changed` — changed-scope rule check | quick |
 | `rules:all` — all 10 rules pass | ship |
 | `tests:all` — `bun test` passes | ship |
 | `surface-coverage` — all surface methods exercised | ship |
+| `sync-tests` — every sync has a sibling test | ship |
 | `legibility` — principle tests have narration | ship |
 | `sync-diagnostics` — sync graph health | ship |
 
-Quick tier: typecheck + rules for changed files.
-Ship tier: all stages above.
+Quick tier: stages from `.opencode/cdh.json` `verify.onAgentEnd`.
+Ship tier: stages from `.opencode/cdh.json` `verify.onShipLocal`.
 
 ## Development
 

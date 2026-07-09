@@ -51,7 +51,7 @@ Required: `setupSyncTest` (R9), positive + negative cases (R9). Negative case na
 
 ## Workflow
 
-1. Call `describe_concept <Name>` to inspect the concept surface
-2. Call `list_syncs` to see existing syncs if writing sync tests
+1. Call `workflow_context` with workflow `test` and the target concept name when relevant.
+2. Call `list_syncs` to see existing syncs if writing sync tests.
 3. Write tests covering all actions, queries, success paths, error paths, edge cases
 4. Run `run_verification` with tier `quick`

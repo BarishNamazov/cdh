@@ -10,8 +10,17 @@ const baseConfig: CdhConfig = {
   rules: { importAllowlist: { syncs: ["@engine"] }, helperMethodAllowlist: [] },
   testing: { errorAssertionPatterns: ["expectError("] },
   verify: {
-    onAgentEnd: [],
-    onShipLocal: [],
+    onAgentEnd: ["typecheck", "rules:changed"],
+    onShipLocal: [
+      "journal-health",
+      "typecheck",
+      "rules:all",
+      "tests:all",
+      "surface-coverage",
+      "sync-tests",
+      "legibility",
+      "sync-diagnostics",
+    ],
     optionalStages: [],
     autofixRetries: 2,
     lineCoverageInfoThreshold: 85,
@@ -92,7 +101,7 @@ function makeRuleEngine(hits: RuleHit[] = []): RuleEngine {
 }
 
 describe("runVerification", () => {
-  test("quick tier returns results for typecheck and rules:all stages", async () => {
+  test("quick tier returns configured agent-end stages", async () => {
     const spy = makeJournalSpy();
 
     const results = await runVerification({
@@ -105,11 +114,11 @@ describe("runVerification", () => {
     });
 
     expect(results.length).toBe(2);
-    expect(results.map((r) => r.stage)).toEqual(["typecheck", "rules:all"]);
+    expect(results.map((r) => r.stage)).toEqual(["typecheck", "rules:changed"]);
     expect(results.every((r) => r.status === "pass")).toBe(true);
   });
 
-  test("ship tier returns results for all 7 stages", async () => {
+  test("ship tier returns configured ship stages", async () => {
     const spy = makeJournalSpy();
 
     const results = await runVerification({
@@ -121,13 +130,14 @@ describe("runVerification", () => {
       tier: "ship",
     });
 
-    expect(results.length).toBe(7);
+    expect(results.length).toBe(8);
     expect(results.map((r) => r.stage)).toEqual([
       "journal-health",
       "typecheck",
       "rules:all",
       "tests:all",
       "surface-coverage",
+      "sync-tests",
       "legibility",
       "sync-diagnostics",
     ]);
@@ -147,7 +157,7 @@ describe("runVerification", () => {
 
     expect(spy.startedEvents.length).toBe(1);
     expect(spy.startedEvents[0].tier).toBe("quick");
-    expect(spy.startedEvents[0].stages).toEqual(["typecheck", "rules:all"]);
+    expect(spy.startedEvents[0].stages).toEqual(["typecheck", "rules:changed"]);
   });
 
   test("emits verification_stage events for each stage", async () => {
@@ -163,7 +173,7 @@ describe("runVerification", () => {
     });
 
     expect(spy.stageEvents.length).toBe(2);
-    expect(spy.stageEvents.map((e) => e.stage)).toEqual(["typecheck", "rules:all"]);
+    expect(spy.stageEvents.map((e) => e.stage)).toEqual(["typecheck", "rules:changed"]);
     for (const ev of spy.stageEvents) {
       expect(ev.status).toBe("pass");
       expect(typeof ev.durationMs).toBe("number");
@@ -254,8 +264,45 @@ describe("runVerification", () => {
       "rules:all",
       "tests:all",
       "surface-coverage",
+      "sync-tests",
       "legibility",
       "sync-diagnostics",
     ]);
+  });
+
+  test("explicit stages override tier config", async () => {
+    const spy = makeJournalSpy();
+
+    const results = await runVerification({
+      cwd: "/tmp",
+      config: baseConfig,
+      contract: baseContract,
+      ruleEngine: makeRuleEngine(),
+      journal: spy.journal,
+      tier: "ship",
+      stages: ["typecheck"],
+    });
+
+    expect(results.map((r) => r.stage)).toEqual(["typecheck"]);
+    expect(spy.startedEvents[0].stages).toEqual(["typecheck"]);
+  });
+
+  test("unknown configured stages fail deterministically", async () => {
+    const spy = makeJournalSpy();
+
+    const results = await runVerification({
+      cwd: "/tmp",
+      config: baseConfig,
+      contract: baseContract,
+      ruleEngine: makeRuleEngine(),
+      journal: spy.journal,
+      tier: "quick",
+      stages: ["not-a-stage"],
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].stage).toBe("not-a-stage");
+    expect(results[0].status).toBe("fail");
+    expect(results[0].summary).toContain("Unknown verification stage");
   });
 });
