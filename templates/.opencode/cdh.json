@@ -25,7 +25,15 @@
       "sync-diagnostics"
     ],
     "optionalStages": ["smoke"],
-    "syncDiagnostics": "warn"
+    "syncDiagnostics": "warn",
+    "agentEnd": {
+      "enabled": true,
+      "changedOnly": true
+    }
+  },
+  "context": {
+    "autoInject": true,
+    "maxDocChars": 2500
   },
   "catalogPaths": [],
   "ship": {

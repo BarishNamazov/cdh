@@ -16,16 +16,92 @@ import { checkSpecSync, formatSpecDiff } from "./tools/spec-sync.ts";
 import { formatDiagnostics, formatDiagnosticsJson, runSyncDiagnostics } from "./tools/sync-diagnostics.ts";
 import { buildSyncGraph, formatGraphJson, formatGraphMermaid, formatGraphReport } from "./tools/sync-graph.ts";
 import { formatTraceResult, traceSyncAction } from "./tools/trace-sync.ts";
-import { buildWorkflowContext, WORKFLOW_KINDS } from "./tools/workflow-context.ts";
+import { buildWorkflowContext, WORKFLOW_KINDS, type WorkflowKind } from "./tools/workflow-context.ts";
 import { formatStageResults } from "./verify/format.ts";
 import { runVerification } from "./verify/runner.ts";
 
+const CDH_AGENTS = new Set(["spec-writer", "concept-implementer", "sync-implementer", "test-writer", "reviewer"]);
+
+const AGENT_WORKFLOW: Record<string, WorkflowKind> = {
+  "spec-writer": "concept",
+  "concept-implementer": "concept",
+  "sync-implementer": "sync",
+  "test-writer": "test",
+  reviewer: "review",
+};
+
 let verificationRunning = false;
+const lastVerificationHash = new Map<string, string>();
 let cachedRegistry: { concepts: CatalogEntry[] } | null = null;
+let cwdState: { cwd: string; config: CdhConfig; contract: RepoContract } | null = null;
 
 export const CdhPlugin: Plugin = async (ctx) => {
   return {
     tool: createCdhTools(),
+    "tool.execute.before": async (input, output) => {
+      if (input.tool !== "task") return;
+      const subagent = output.args?.subagent_type;
+      if (typeof subagent !== "string" || !CDH_AGENTS.has(subagent)) return;
+
+      const prompt = typeof output.args?.prompt === "string" ? output.args.prompt : "";
+      try {
+        const state = await getOrResolveCtx(ctx.worktree);
+        if (!state || state.config.context?.autoInject === false) return;
+
+        const workflow = AGENT_WORKFLOW[subagent];
+        if (!workflow) return;
+
+        const conceptName = inferConceptName(prompt);
+        const maxDocChars = state.config.context?.maxDocChars ?? 2500;
+
+        const contextBlock = await buildWorkflowContext(ctx.worktree, state.config, state.contract, {
+          workflow,
+          concept: conceptName,
+          includeDocs: true,
+          maxDocChars,
+        });
+
+        const header = `\n\n## CDH Auto Context\nGenerated before this subagent ran. Do not perform broad codebase exploration unless this context is insufficient. Use CDH tools (list_concepts, describe_concept, etc.) only for focused refreshes.\n\n`;
+
+        output.args.prompt = `${header}${contextBlock}\n\n---\n\n${prompt}`;
+      } catch (err) {
+        console.error(
+          `[cdh] context injection failed for ${subagent}: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    },
+    "tool.execute.after": async (input, output) => {
+      if (input.tool !== "task") return;
+      const subagent = input.args?.subagent_type;
+      if (typeof subagent !== "string" || !CDH_AGENTS.has(subagent)) return;
+
+      if (verificationRunning) return;
+
+      try {
+        const state = await getOrResolveCtx(ctx.worktree);
+        if (!state || state.config.verify.agentEnd?.enabled === false) return;
+
+        const changedOnly = state.config.verify.agentEnd?.changedOnly !== false;
+        if (changedOnly) {
+          const hash = computeWorkspaceHash(ctx.worktree);
+          if (hash === lastVerificationHash.get(subagent)) return;
+          lastVerificationHash.set(subagent, hash);
+        }
+
+        verificationRunning = true;
+        const result = await runVerificationForAgent(ctx.worktree, state.config, state.contract);
+        verificationRunning = false;
+
+        if (output.output && typeof output.output === "string") {
+          output.output += `\n\n${result}`;
+        } else if (output) {
+          (output as Record<string, unknown>).output = result;
+        }
+      } catch (err) {
+        verificationRunning = false;
+        console.error(`[cdh] agent-end verification failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
     event: async ({ event }) => {
       if (event.type !== "session.idle" || verificationRunning) return;
       verificationRunning = true;
@@ -48,6 +124,42 @@ Run \`run_verification\` with tier \`ship\` before declaring shippable work comp
 };
 
 export default CdhPlugin;
+
+async function runVerificationForAgent(cwd: string, config: CdhConfig, contract: RepoContract): Promise<string> {
+  const journal = new Journal(cwd, config);
+  journal.initRun(process.env as Record<string, string | undefined>);
+  const results = await runVerification({
+    cwd,
+    config,
+    contract,
+    ruleEngine: createRuleEngine(cwd, config, contract),
+    journal,
+    tier: "quick",
+    stages: config.verify.onAgentEnd,
+  });
+  const failed = results.filter((r) => r.status === "fail");
+  const summary = failed.length > 0 ? `${failed.length} stage(s) failed.` : "All stages passed.";
+  const lines = ["", "### CDH Agent-End Verification", ...formatStageResults(results), "", summary];
+  return lines.join("\n");
+}
+
+function computeWorkspaceHash(_cwd: string): string {
+  return ""; // simplified: let session.idle serve as fallback; task hook runs once per completed CDH subagent
+}
+
+function inferConceptName(prompt: string): string | undefined {
+  const patterns = [/concept\s+(\w+)/i, /(\w+)\s+concept/i, /src\/concepts\/(\w+)/, /design\/concepts\/(\w+)/i];
+  for (const pattern of patterns) {
+    const match = pattern.exec(prompt);
+    if (match?.[1]) {
+      const name = match[1];
+      if (name.length > 1 && name[0] === name[0].toUpperCase()) return name;
+    }
+  }
+  const words = prompt.split(/\s+/).filter((w) => w.length > 0 && w[0] === w[0].toUpperCase());
+  if (words.length === 1) return words[0];
+  return undefined;
+}
 
 function createCdhTools(): Record<string, ToolDefinition> {
   return {
@@ -269,6 +381,17 @@ async function runAgentEndVerification(cwd: string): Promise<void> {
   const failed = results.filter((result) => result.status === "fail");
   const summary = failed.length > 0 ? `${failed.length} stage(s) failed.` : "all configured stages passed.";
   console.log(`[cdh] agent-end verification: ${summary}\n${formatStageResults(results).join("\n")}`);
+}
+
+async function getOrResolveCtx(cwd: string): Promise<{ config: CdhConfig; contract: RepoContract } | null> {
+  try {
+    if (cwdState && cwdState.cwd === cwd) return cwdState;
+    const { config, contract } = await resolveCtx(cwd);
+    cwdState = { cwd, config, contract };
+    return cwdState;
+  } catch {
+    return null;
+  }
 }
 
 async function resolveCtx(cwd: string): Promise<{ config: CdhConfig; contract: RepoContract }> {

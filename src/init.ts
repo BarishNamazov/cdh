@@ -1,10 +1,9 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { getPackageRoot } from "./package-root.ts";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMPLATES = path.resolve(__dirname, "..", "templates");
-const OPENCODE_INTEGRATION = path.resolve(__dirname, "..", ".opencode");
+const TEMPLATES = path.join(getPackageRoot(), "templates");
+const OPENCODE_INTEGRATION = path.join(getPackageRoot(), ".opencode");
 
 export interface InitResult {
   created: string[];

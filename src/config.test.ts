@@ -45,3 +45,17 @@ describe("deepMerge", () => {
     });
   });
 });
+
+describe("defaultConfig", () => {
+  test("includes verify.agentEnd config", () => {
+    expect(defaultConfig.verify.agentEnd).toEqual({ enabled: true, changedOnly: true });
+  });
+
+  test("includes context config", () => {
+    expect(defaultConfig.context).toEqual({ autoInject: true, maxDocChars: 2500 });
+  });
+
+  test("legacy verify.onAgentEnd still present", () => {
+    expect(defaultConfig.verify.onAgentEnd).toEqual(["typecheck", "rules:changed"]);
+  });
+});

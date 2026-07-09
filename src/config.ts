@@ -24,6 +24,14 @@ export interface CdhConfig {
     autofixRetries?: number;
     lineCoverageInfoThreshold?: number;
     syncDiagnostics: string;
+    agentEnd?: {
+      enabled?: boolean;
+      changedOnly?: boolean;
+    };
+  };
+  context?: {
+    autoInject?: boolean;
+    maxDocChars?: number;
   };
   catalogPaths: string[];
   ship: {
@@ -71,6 +79,14 @@ export const defaultConfig: CdhConfig = {
     ],
     optionalStages: ["smoke"],
     syncDiagnostics: "warn",
+    agentEnd: {
+      enabled: true,
+      changedOnly: true,
+    },
+  },
+  context: {
+    autoInject: true,
+    maxDocChars: 2500,
   },
   catalogPaths: [],
   ship: {
@@ -130,6 +146,23 @@ function validateConfig(value: unknown): string[] {
   requireOptionalNumber(value, "/verify/autofixRetries", errors);
   requireOptionalNumber(value, "/verify/lineCoverageInfoThreshold", errors);
   requireString(value, "/verify/syncDiagnostics", errors);
+
+  const agentEnd = getPath(value, "/verify/agentEnd");
+  if (agentEnd !== undefined && isRecord(agentEnd)) {
+    if (agentEnd.enabled !== undefined)
+      requireOptionalBoolean(agentEnd as Record<string, unknown>, "/enabled", "/verify/agentEnd", errors);
+    if (agentEnd.changedOnly !== undefined)
+      requireOptionalBoolean(agentEnd as Record<string, unknown>, "/changedOnly", "/verify/agentEnd", errors);
+  }
+
+  const context = getPath(value, "/context");
+  if (context !== undefined && isRecord(context)) {
+    if (context.autoInject !== undefined)
+      requireOptionalBoolean(context as Record<string, unknown>, "/autoInject", "/context", errors);
+    if (context.maxDocChars !== undefined)
+      requireOptionalNumberInner(context as Record<string, unknown>, "/maxDocChars", "/context", errors);
+  }
+
   requireStringArray(value, "/catalogPaths", errors);
   requireString(value, "/ship/branchPrefix", errors);
   requireBoolean(value, "/ship/review", errors);
@@ -164,9 +197,29 @@ function requireBoolean(root: Record<string, unknown>, pointer: string, errors: 
   if (typeof getPath(root, pointer) !== "boolean") errors.push(`${pointer}: Expected boolean`);
 }
 
+function requireOptionalBoolean(
+  root: Record<string, unknown>,
+  pointer: string,
+  prefix: string,
+  errors: string[]
+): void {
+  const value = root[pointer.slice(1)];
+  if (value !== undefined && typeof value !== "boolean") errors.push(`${prefix}${pointer}: Expected boolean`);
+}
+
 function requireOptionalNumber(root: Record<string, unknown>, pointer: string, errors: string[]): void {
   const value = getPath(root, pointer);
   if (value !== undefined && typeof value !== "number") errors.push(`${pointer}: Expected number`);
+}
+
+function requireOptionalNumberInner(
+  root: Record<string, unknown>,
+  pointer: string,
+  prefix: string,
+  errors: string[]
+): void {
+  const value = root[pointer.slice(1)];
+  if (value !== undefined && typeof value !== "number") errors.push(`${prefix}${pointer}: Expected number`);
 }
 
 function requireStringArray(root: Record<string, unknown>, pointer: string, errors: string[]): void {

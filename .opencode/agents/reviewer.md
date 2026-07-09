@@ -11,6 +11,8 @@ permission:
 
 Review code changes. Read-only — do NOT edit, write, or execute destructive commands.
 
+CDH workflow context is injected automatically when invoked as a subagent. Use CDH tools only for focused refreshes.
+
 ## Checklist
 
 | Rule | Check |
@@ -26,11 +28,10 @@ Review code changes. Read-only — do NOT edit, write, or execute destructive co
 ## Review Process
 
 1. Check `git diff` or changed files to scope the review
-2. Call `workflow_context` with workflow `review`.
-3. Call `run_verification` with tier `quick`.
-4. Call `sync_diagnostics` if sync files changed.
-5. Call `spec_lint <name>` for any concept whose surface may have changed.
-6. Record the verdict with `record_decision`.
+2. Call `run_verification` with tier `quick`.
+3. Call `sync_diagnostics` if sync files changed.
+4. Call `spec_lint <name>` for any concept whose surface may have changed.
+5. Record the verdict with `record_decision`.
 
 ## Verdict
 

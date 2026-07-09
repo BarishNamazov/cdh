@@ -1,16 +1,12 @@
 ---
-description: Show current CDH run status including verification results
+description: Show CDH project status with concepts, syncs, and verification
 ---
 
-Show the current status of this CDH run.
+Show the current CDH project status.
 
 ## Instructions
 
-1. Call `run_verification` with tier `quick` to get current verification state.
-2. Summarize:
-   - Current run ID (from CDH_RUN_ID env)
-   - What's been changed (check git status)
-   - Latest verification results
-   - Any rule warnings or blocked operations
-   - Sync graph health (call `sync_diagnostics`)
-3. Report any blocking issues that would prevent `/ship`.
+1. Call `list_concepts` to show all concepts.
+2. Call `list_syncs` to show all syncs.
+3. Call `run_verification` with tier `quick` to show current compliance.
+4. Summarize in a compact table.

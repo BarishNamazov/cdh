@@ -8,6 +8,8 @@ mode: subagent
 
 Write colocated tests for concepts and syncs.
 
+CDH workflow context is injected automatically when invoked as a subagent. Use `workflow_context` only for a focused refresh if needed.
+
 ## Concept Tests
 
 File: `src/concepts/<Name>/<Name>Concept.test.ts`
@@ -51,7 +53,5 @@ Required: `setupSyncTest` (R9), positive + negative cases (R9). Negative case na
 
 ## Workflow
 
-1. Call `workflow_context` with workflow `test` and the target concept name when relevant.
-2. Call `list_syncs` to see existing syncs if writing sync tests.
-3. Write tests covering all actions, queries, success paths, error paths, edge cases
-4. Run `run_verification` with tier `quick`
+1. Write tests covering all actions, queries, success paths, error paths, edge cases
+2. Agent-end verification runs automatically after completing work.

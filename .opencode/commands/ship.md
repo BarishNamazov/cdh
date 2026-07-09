@@ -1,25 +1,12 @@
 ---
-description: Ship changes with verification, commit, and optional PR
+description: Ship changes through verification, commit, branch, and PR
 ---
 
-Ship the current changes. Run preflight, verification, and commit.
+Ship the current changes. This is the CDH ship workflow.
 
 ## Instructions
 
-1. Call `run_verification` with tier `ship`.
-2. If verification fails, fix issues and re-verify.
-3. Check for pre-existing dirty files that shouldn't be included.
-4. If all clear, confirm the ship:
-   a. Describe what will be committed (list touched files)
-   b. Ask user to confirm
-   c. On confirmation, suggest `cdh ship --confirm`
-
-## What gets shipped
-- Only files touched during this session
-- Pre-existing dirty/staged files are excluded
-- Commit includes `Cdh-Run: <runId>` trailer
-- Branch created with configured prefix
-
-## Options
-- `--no-review`: Skip review stage
-- `--no-ci`: Skip CI trigger
+1. Run `run_verification` with tier `ship` first.
+2. If all stages pass, confirm the user wants to proceed.
+3. Run `cdh ship --confirm` to commit, branch, push, and create PR.
+4. Report the PR URL.

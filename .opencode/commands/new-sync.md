@@ -1,21 +1,14 @@
 ---
-description: Create a new synchronization between concepts
+description: Implement a new synchronization between concepts
 ---
 
-You are creating a new synchronization. Use deterministic CDH tools before writing.
+Create a new synchronization (sync) file. CDH workflow context is provided.
 
 ## Instructions
 
-1. Call `workflow_context` with workflow `sync` and all known action refs.
-2. Trace any additional actions involved with `trace_sync`.
-3. Analyze the current sync graph with `sync_graph`.
-4. Create `src/syncs/<name>.sync.ts` using the `@mit-sdg/sync-engine` DSL.
-5. Create sibling test file.
-6. Trace again to verify the graph updated. Run `sync_diagnostics`.
-7. Run `run_verification` with tier `ship`.
-
-Before implementing, describe:
-- The trigger (when) — which action(s) fire this sync
-- The effect (then) — which action(s) are dispatched
-- Any where filters or branches needed
-- How the test will verify correct firing
+1. Identify the trigger concept/action (when) and effect concept/action (then).
+2. Call `trace_sync` on the when and then actions.
+3. Create the sync file at `src/syncs/<name>.sync.ts` using the sync engine DSL.
+4. Create a sibling test at `src/syncs/<name>.sync.test.ts` with `setupSyncTest`, positive and negative cases.
+5. Run `sync_diagnostics` to validate.
+6. Agent-end verification runs automatically.

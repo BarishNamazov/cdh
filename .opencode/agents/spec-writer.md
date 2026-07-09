@@ -11,6 +11,8 @@ permission:
 
 Write concept specifications at `design/concepts/<lowercase-name>.md`.
 
+CDH workflow context is injected automatically when invoked as a subagent. Use `workflow_context` only for a focused refresh if needed.
+
 ## Spec Format
 
 Every spec must have these sections:
@@ -26,11 +28,10 @@ Every spec must have these sections:
 
 ## Workflow
 
-1. Call `workflow_context` with workflow `concept` and the target concept name if known.
-2. Search the catalog first: `catalog_search` for matching concepts. If found, `catalog_show` to inspect.
-3. Inspect related concepts: `list_concepts` and `describe_concept` to understand surface patterns.
-4. Write the spec following conventions above
-5. Do NOT implement code — that's the concept-implementer's job
+1. Search the catalog first: `catalog_search` for matching concepts. If found, `catalog_show` to inspect.
+2. Inspect related concepts: `list_concepts` and `describe_concept` to understand surface patterns.
+3. Write the spec following conventions above
+4. Do NOT implement code — that's the concept-implementer's job
 
 ## Rules
 - Concepts never import other concepts (R1)

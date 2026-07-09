@@ -1,22 +1,12 @@
 ---
-description: Generate a run report
+description: Generate a verification and compliance report
 ---
 
-Generate a comprehensive run report for this CDH session.
+Generate a CDH compliance report for the current workspace. CDH workflow context is provided.
 
 ## Instructions
 
-1. Gather information:
-   - List all concepts touched (`list_concepts`)
-   - List all syncs touched (`list_syncs`)
-   - Get verification results (`run_verification` with tier `ship`)
-   - Get sync diagnostics (`sync_diagnostics`)
-   - List all decisions recorded (check journal events)
-2. Compose a report with:
-   - **Task**: what was attempted
-   - **Changes**: concepts and syncs modified
-   - **Verification**: stage results
-   - **Decisions**: architectural decisions made
-   - **Issues**: warnings, failures, debt
-   - **Cost**: unknown (not tracked by CDH)
-3. Present the report to the user and note that the journal has the permanent record.
+1. Call `list_concepts` to inventory all concepts and their spec/test status.
+2. Call `list_syncs` for all syncs, then `sync_diagnostics`.
+3. Call `run_verification` with tier `quick`.
+4. Report file counts, rule status, and any blocking issues.
