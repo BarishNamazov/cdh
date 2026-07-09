@@ -121,7 +121,6 @@ export class Journal {
     const decisions = events.filter((e) => e.event.type === "decision");
     const warnings = events.filter((e) => e.event.type === "rule_warning");
     const suppressions = events.filter((e) => e.event.type === "suppression");
-    const _blocks = events.filter((e) => e.event.type === "gate_blocked");
 
     const allPassed = verifications.every((e) => {
       const ev = e.event as Extract<CdhEvent, { type: "verification_stage" }>;

@@ -8,7 +8,7 @@ describe("loadConfig", () => {
   test("deep merges defaults, global config, and project config", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "cdh-config-"));
     const globalPath = path.join(dir, "global.json");
-    const projectPath = path.join(dir, ".pi", "cdh.json");
+    const projectPath = path.join(dir, ".opencode", "cdh.json");
     await writeFile(
       globalPath,
       JSON.stringify({ verify: { syncDiagnostics: "off" }, ship: { branchPrefix: "test/" } })

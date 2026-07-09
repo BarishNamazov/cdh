@@ -69,7 +69,6 @@ export function captureSnapshot(cwd: string): ShipRunSnapshot | null {
 
 export function computeTouched(cwd: string, snapshot: ShipRunSnapshot): TouchedResult {
   const statusResult = runGit(cwd, ["status", "--porcelain"]);
-  const _touched: string[] = [];
   const preExistingDirty: string[] = [];
   const touchedSet = new Set<string>();
 

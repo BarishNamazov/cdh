@@ -99,8 +99,8 @@ interface LoadConfigOptions {
 }
 
 export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): Promise<CdhConfig> {
-  const globalPath = options.globalPath ?? path.join(homedir(), ".pi", "agent", "cdh.json");
-  const projectPath = options.projectPath ?? path.join(cwd, ".pi", "cdh.json");
+  const globalPath = options.globalPath ?? path.join(homedir(), ".opencode", "cdh.json");
+  const projectPath = options.projectPath ?? path.join(cwd, ".opencode", "cdh.json");
   const merged = deepMerge(
     deepMerge(defaultConfig, await readJsonIfExists(globalPath)),
     await readJsonIfExists(projectPath)

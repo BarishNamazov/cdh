@@ -16,7 +16,7 @@
   "include": [
     "bin/**/*.ts",
     "src/**/*.ts",
-    "extensions/**/*.ts",
+    ".opencode/**/*.ts",
     "scripts/**/*.ts",
     "fixtures/**/*.ts"
   ],

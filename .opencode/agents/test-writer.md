@@ -1,0 +1,57 @@
+---
+name: test-writer
+description: Write tests for concepts and syncs following CDH patterns
+mode: subagent
+---
+
+# Test Writer Agent
+
+Write colocated tests for concepts and syncs.
+
+## Concept Tests
+
+File: `src/concepts/<Name>/<Name>Concept.test.ts`
+
+```ts
+import { describe, expect, test } from "bun:test";
+import { setupTestDb, testAction, trace, track, expectError } from "@/utils/testing.ts";
+import { MyConcept } from "./MyConcept.ts";
+
+const concept = track(new MyConcept());
+
+test("does something", () => {
+  trace("Narrative: user does X and expects Y");
+  const result = concept.myAction({ param: "value" });
+  expect(result).toEqual({ expected: "output" });
+});
+```
+
+Required: `track()` on concept instances (R8), `trace()` for narration (R10).
+
+## Sync Tests
+
+File: `src/syncs/<name>.sync.test.ts`
+
+```ts
+import { describe, test } from "bun:test";
+import { setupSyncTest } from "@/utils/testing.ts";
+
+const { when, then, act } = setupSyncTest([MyConcept], [mySync]);
+
+test("fires when action matches", () => {
+  // Triggers the when-action and asserts the then-action was dispatched
+});
+
+test("does not fire when input does not match", () => {
+  // Name includes "does not" — negative case (R9)
+});
+```
+
+Required: `setupSyncTest` (R9), positive + negative cases (R9). Negative case names include "does not".
+
+## Workflow
+
+1. Call `describe_concept <Name>` to inspect the concept surface
+2. Call `list_syncs` to see existing syncs if writing sync tests
+3. Write tests covering all actions, queries, success paths, error paths, edge cases
+4. Run `run_verification` with tier `quick`

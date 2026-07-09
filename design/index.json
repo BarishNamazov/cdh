@@ -1,0 +1,22 @@
+{
+  "specsDir": "design/concepts",
+  "docs": {
+    "concept-design-overview": "concept-design-overview.md",
+    "concept-spec-conventions": "concept-specifications.md",
+    "implementation-conventions": "implementing-concepts.md",
+    "sync-conventions": "implementing-synchronizations.md",
+    "testing-conventions": "testing-concepts.md"
+  },
+  "helpers": {
+    "testingModule": "@utils/testing.ts",
+    "exports": ["setupTestDb", "trace", "track", "testAction", "expectError", "setupSyncTest"]
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "bun run check",
+    "start": "bun run start"
+  },
+  "health": {
+    "path": "/api/health"
+  }
+}

@@ -2,7 +2,7 @@
 
 CDH turns any directory into a **concept-design repo**: a codebase where features are built as
 independent concepts composed through synchronizations, with automated rule enforcement,
-verification, and multi-agent orchestration — all inside your pi coding agent or from the CLI.
+verification, and subagent orchestration — all inside your OpenCode coding agent or from the CLI.
 
 ## Quick Start
 
@@ -11,14 +11,14 @@ verification, and multi-agent orchestration — all inside your pi coding agent 
 cdh init
 bun install
 
-# 3. Start pi — CDH loads automatically
-pi
+# Start OpenCode — CDH tools load automatically
+opencode
 ```
 
-That's it. Inside pi you can immediately say _"build a todo app"_ and the agent will create
+Inside OpenCode you can immediately say _"build a todo app"_ and the agent will create
 concept specs, implementations, syncs, and tests — all following concept-design rules.
 
-If you prefer the CLI instead of pi:
+If you prefer the CLI:
 
 ```bash
 cdh init
@@ -30,59 +30,52 @@ cdh ship        # verify + commit + branch + push + PR
 
 ## How It Works
 
-CDH is both a **pi package** and a **standalone CLI**. When pi starts in a CDH-initialized
-repo, it auto-loads CDH extensions that add 14+ agent tools:
+CDH is both an **OpenCode package** and a **standalone CLI**. When OpenCode starts in a
+CDH-initialized repo, it auto-loads CDH tools that add 14+ agent tools:
 
 ```
-pi starts → reads .pi/settings.json → loads CDH →
+opencode starts → loads .opencode/tools/ → loads .opencode/agents/ →
   agent gets: list_concepts, describe_concept, list_syncs, trace_sync,
               sync_graph, sync_diagnostics, read_design_doc, run_verification,
-              catalog_search, catalog_copy, cdh_init, orchestrate_run
+              catalog_search, catalog_copy, cdh_init, record_decision
 ```
 
-**Single-agent mode** (default): the pi agent uses all CDH tools directly. Say
+**Single-agent mode** (default): the agent uses all CDH tools directly. Say
 _"build a todo app with labeling and comments"_ and it will read the design docs,
 create specs, implement concepts, wire up syncs with `@mit-sdg/sync-engine`, write
 tests, and run verification — all in one session.
 
-**Multi-agent mode**: subagents ship with the CDH package. Use `orchestrate_run` to delegate work to
-specialized subagents. Each runs as an isolated pi process with a focused toolset.
-This is optional — single-agent mode handles everything.
+**Subagent mode**: OpenCode's native subagents in `.opencode/agents/` handle specialized tasks.
+The primary agent can invoke them via the `task` tool. Each subagent runs with
+specific permissions and model configuration.
 
 ## Subagents
 
-Six specialized agents ship with the package:
+Six specialized subagents ship with the package:
 
-| Agent | Role | Tools | Mode |
-|-------|------|-------|------|
-| **spec-writer** | Creates concept specs from user intent | read, write, read_design_doc, catalog | read/write |
-| **concept-implementer** | Implements concept classes from specs | read, write, edit, bash, describe_concept, run_verification | read/write |
-| **sync-implementer** | Wires syncs between concepts | read, write, edit, bash, trace_sync, sync_graph, list_syncs, run_verification | read/write |
-| **test-writer** | Writes tests following CDH conventions | read, write, edit, bash, describe_concept, list_syncs | read/write |
-| **reviewer** | Rule-compliance review (read-only) | read, list_concepts, list_syncs, trace_sync, sync_graph, sync_diagnostics, run_verification | read-only |
-| **scout** | Explores codebase and reports findings | read, list_concepts, describe_concept, list_syncs, trace_sync, sync_graph, catalog | read-only |
+| Agent | Role | Permissions |
+|-------|------|-------------|
+| **spec-writer** | Creates concept specs from user intent | edit: allow, bash: deny |
+| **concept-implementer** | Implements concept classes from specs | full access |
+| **sync-implementer** | Wires syncs between concepts | full access |
+| **test-writer** | Writes tests following CDH conventions | full access |
+| **reviewer** | Rule-compliance review | read-only |
+| **scout** | Explores codebase and reports findings | read-only |
 
-**Usage inside pi** — ask the agent to orchestrate:
+**Usage inside OpenCode** — ask the agent to delegate:
 
 ```
-> Build a notification system. Use orchestrate_run in chain mode:
-  spec-writer → concept-implementer → sync-implementer → test-writer → reviewer.
+> Build a notification system. Use spec-writer → concept-implementer →
+  sync-implementer → test-writer → reviewer chain.
 ```
 
 Or use single-task delegation:
 
 ```
-> Send a scout to explore the codebase and report on concept dependencies.
+> @scout explore the codebase and report on concept dependencies.
 ```
 
-**Modes:**
-
-- `single` — run one agent on one task
-- `chain` — sequential pipeline, each step gets `{previous}` output as context
-- `parallel` — fan out up to 4 agents on independent tasks
-
-Agents are isolated: the reviewer cannot edit files, the sync-implementer traces the
-sync graph before and after edits, and all agents run verification on their own work.
+Reviewer and scout are read-only (permissions enforce it natively).
 
 ## CLI Reference
 
@@ -90,7 +83,7 @@ sync graph before and after edits, and all agents run verification on their own 
 cdh init                    # Scaffold a concept-design repo with Greeting example
 
 cdh rules                   # Run all rules against the current repo
-cdh verify --tier quick     # Quick check (typecheck + rules) — runs on every agent end
+cdh verify --tier quick     # Quick check (typecheck + rules)
 cdh verify --tier ship      # Full verification — runs before cdh ship
 
 cdh ship --confirm          # Preflight → verify → commit → branch → push → PR
@@ -132,40 +125,6 @@ or prevent shipping (FAIL-SHIP):
 | R9  | Sync tests use `setupSyncTest`, have positive + negative cases | FAIL-SHIP |
 | R10 | Principle and multi-action tests have `trace()` narration | FAIL-SHIP |
 
-## Sync Engine DSL
-
-Syncs are declarative `when → where? → then` rules composed with
-[@mit-sdg/sync-engine](https://www.npmjs.com/package/@mit-sdg/sync-engine):
-
-```typescript
-import { act, on, onError, sync, type Vars, when } from "@mit-sdg/sync-engine";
-
-export const auditSync = sync(({ id }: Vars) =>
-  when(Labeling.addLabel, { item: "" }, { id })
-    .where((frames) => frames.query(Audit._getEvents, { targetId: id }, {}))
-    .then(
-      act(Audit.record, { id, event: "CREATED" }).branch(
-        on(act(Audit.record, { id, event: "CONFIRMED" })),
-        onError({ error }, act(Audit.record, { id, event: "FAILED", error })),
-      ),
-    ),
-);
-```
-
-Endpoint syncs:
-
-```typescript
-import { createEndpointDsl, syncMap } from "@mit-sdg/sync-engine/sdk";
-
-const dsl = createEndpointDsl(Requesting);
-export const auth = dsl.defineEndpoint("/auth/login", ({ Sync, Request, Respond, Actions }) => ({
-  login: Sync(({ token }) => ({
-    when: Actions(Request({})),
-    then: Actions(Respond({ token })),
-  })),
-}));
-```
-
 ## Ship Safety
 
 `cdh ship` runs a strict pipeline before touching git:
@@ -174,7 +133,7 @@ export const auth = dsl.defineEndpoint("/auth/login", ({ Sync, Request, Respond,
 2. **Verify** — all ship-tier stages must pass (journal-health, typecheck, rules, tests, surface-coverage, legibility, sync-diagnostics)
 3. **Commit** — stages only changed files, includes `Cdh-Run: <runId>` trailer
 4. **Branch** — `cdh/<runId>`, suffix on collision
-5. **Push/PR** — controlled by config (`.pi/cdh.json` `ship.push`, `ship.createPr`)
+5. **Push/PR** — controlled by config (`.opencode/cdh.json` `ship.push`, `ship.createPr`)
 
 ## Catalog
 
@@ -192,8 +151,20 @@ Built-in: **Authenticating** — username/password identity with `Bun.password` 
 
 ```
 my-app/
-├── .pi/settings.json            # { "packages": ["@mit-sdg/cdh"] }
-├── .pi/cdh.json                 # CDH config (rules, verify, ship, etc.)
+├── opencode.json                  # OpenCode config (permissions, instructions)
+├── .opencode/
+│   ├── cdh.json                   # CDH config (rules, verify, ship, etc.)
+│   ├── agents/                    # CDH subagents
+│   │   ├── spec-writer.md
+│   │   ├── concept-implementer.md
+│   │   ├── sync-implementer.md
+│   │   ├── test-writer.md
+│   │   ├── reviewer.md
+│   │   └── scout.md
+│   ├── tools/                     # CDH custom tools
+│   ├── plugins/                   # CDH plugins
+│   ├── commands/                  # Custom commands
+│   └── skills/                    # Reusable skill workflows
 ├── .gitignore
 ├── package.json
 ├── tsconfig.json
@@ -233,13 +204,13 @@ my-app/
 | `legibility` — principle tests have narration | ship |
 | `sync-diagnostics` — sync graph health | ship |
 
-Quick tier (`onAgentEnd`): typecheck + rules for changed files.
-Ship tier (`onShipLocal`): all stages above.
+Quick tier: typecheck + rules for changed files.
+Ship tier: all stages above.
 
 ## Development
 
 ```bash
 bun install
-bun test          # 155 tests
+bun test          # 123 tests
 bun run check     # TypeScript typecheck
 ```

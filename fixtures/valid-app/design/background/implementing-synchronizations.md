@@ -9,7 +9,7 @@ CDH targets the current `@mit-sdg/sync-engine` authoring model: syncs are declar
 Use the fluent engine DSL from `@mit-sdg/sync-engine`:
 
 ```typescript
-import { act, on, onError, seq, sync, type Vars, when } from "@mit-sdg/sync-engine";
+import { act, on, onError, seq, sync, type Vars, when } from "@mit-sdg/sync-engine/engine";
 
 export const AuditTodoCreate = sync(({ todoId }: Vars) =>
   when(Todo.create, { id: todoId }, { id: todoId }).then(
@@ -65,7 +65,7 @@ const AuditProfileCreate = ({ profileId }: Vars) =>
 For larger files or non-trivial `where` logic, prefer typed variables with `declareVars`:
 
 ```typescript
-import { declareVars, Where } from "@mit-sdg/sync-engine";
+import { declareVars, Where } from "@mit-sdg/sync-engine/engine";
 
 const { pipe, read } = Where;
 const v = declareVars<{ session: string; user: string; course: string; error: string }>();

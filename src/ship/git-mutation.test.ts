@@ -38,7 +38,7 @@ describe("commitShip", () => {
       writeFileSync(path.join(dir, "new-file.ts"), "console.log(1);");
       const runId = "test-run-001";
 
-      const result = commitShip(dir, testConfig, runId, ["new-file.ts"], "ship: test");
+      const result = commitShip(dir, runId, ["new-file.ts"], "ship: test");
       expect(result.ok).toBe(true);
       expect(result.commitSha).toBeDefined();
 
@@ -56,7 +56,7 @@ describe("commitShip", () => {
   test("fails when no files to commit", () => {
     const dir = getTestDir();
     try {
-      const result = commitShip(dir, testConfig, "run-001", [], "ship: test");
+      const result = commitShip(dir, "run-001", [], "ship: test");
       expect(result.ok).toBe(false);
       expect(result.errors[0]).toBe("No files to commit.");
     } finally {

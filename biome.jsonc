@@ -35,7 +35,7 @@
     }
   },
   "files": {
-    "includes": ["bin/**/*.ts", "src/**/*.ts", "extensions/**/*.ts", "scripts/**/*.ts", "catalog/**/*.ts"],
+    "includes": ["bin/**/*.ts", "src/**/*.ts", ".opencode/**/*.ts", "scripts/**/*.ts", "catalog/**/*.ts"],
     "ignoreUnknown": true
   },
   "overrides": [

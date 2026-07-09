@@ -9,8 +9,8 @@ CDH repositories are structured around two fundamental building blocks:
 
 ```
 app/
-├── .pi/settings.json            # Pi configuration
-├── .pi/cdh.json                 # CDH harness configuration
+├── opencode.json                # OpenCode configuration
+├── .opencode/cdh.json           # CDH harness configuration
 ├── design/
 │   ├── index.json               # Repo contract (paths, docs, helpers, scripts)
 │   ├── background/              # Convention docs (these files)

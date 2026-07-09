@@ -1,5 +1,5 @@
 import * as Requesting from "../concepts/Requesting.ts";
-import { Sync } from "@mit-sdg/sync-engine";
+import { Sync } from "@mit-sdg/sync-engine/engine";
 import { createEndpointDsl, syncMap } from "@mit-sdg/sync-engine/sdk";
 
 const dsl = createEndpointDsl(Requesting);

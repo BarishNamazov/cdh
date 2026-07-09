@@ -11,7 +11,6 @@ export interface GitMutationResult {
 
 export function commitShip(
   cwd: string,
-  _config: CdhConfig,
   runId: string,
   touchedFiles: string[],
   message: string = "ship: CDH auto-commit"
